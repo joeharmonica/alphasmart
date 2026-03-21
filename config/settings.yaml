@@ -1,0 +1,44 @@
+llm:
+  provider: "anthropic"
+  model: "claude-sonnet-4-6"
+  max_tokens: 1024
+  temperature: 0.2
+
+market_data:
+  stocks:
+    provider: "yfinance"
+    # provider: "polygon"
+    # api_key: ${POLYGON_API_KEY}
+  crypto:
+    exchange: "binance"
+    api_key: ${BINANCE_API_KEY}
+    api_secret: ${BINANCE_SECRET}
+
+broker:
+  stocks:
+    provider: "alpaca"
+    api_key: ${ALPACA_API_KEY}
+    secret_key: ${ALPACA_SECRET}
+    base_url: "https://paper-api.alpaca.markets"  # Paper first. Always.
+  crypto:
+    exchange: "binance"
+    testnet: true
+
+risk:
+  max_position_pct: 0.05        # 5% per position
+  max_portfolio_risk: 0.15      # 15% gross exposure
+  stop_loss_pct: 0.03           # 3% per position
+  max_daily_loss: 0.02          # 2% portfolio daily loss limit
+  max_drawdown: 0.20            # 20% circuit breaker — halts all live
+  max_trades_per_day: 10
+  max_open_orders: 5
+
+database:
+  dev: "sqlite:///alphasmart_dev.db"
+  # prod: "postgresql://user:pass@host:5432/alphasmart"
+
+logging:
+  level: "INFO"
+  file: "logs/alphasmart.log"
+  rotation: "10 MB"
+  retention: "30 days"
