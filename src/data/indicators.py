@@ -122,6 +122,47 @@ def add_atr(df: pd.DataFrame, period: int = 14) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# MACD — Moving Average Convergence/Divergence
+# ---------------------------------------------------------------------------
+
+def macd(
+    df: pd.DataFrame,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+    col: str = "close",
+) -> pd.DataFrame:
+    """
+    MACD indicator.
+    Returns DataFrame with columns: macd, macd_signal, macd_hist
+      macd       = EMA(fast) - EMA(slow)
+      macd_signal = EMA(signal) of macd
+      macd_hist  = macd - macd_signal
+    """
+    ema_fast = df[col].ewm(span=fast, adjust=False).mean()
+    ema_slow = df[col].ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    histogram = macd_line - signal_line
+    return pd.DataFrame(
+        {"macd": macd_line, "macd_signal": signal_line, "macd_hist": histogram},
+        index=df.index,
+    )
+
+
+def add_macd(
+    df: pd.DataFrame,
+    fast: int = 12,
+    slow: int = 26,
+    signal: int = 9,
+) -> pd.DataFrame:
+    """Add macd, macd_signal, macd_hist columns."""
+    df = df.copy()
+    m = macd(df, fast=fast, slow=slow, signal=signal)
+    return pd.concat([df, m], axis=1)
+
+
+# ---------------------------------------------------------------------------
 # Volume MA
 # ---------------------------------------------------------------------------
 
@@ -179,4 +220,5 @@ def add_all(
     df = add_atr(df, period=atr_period)
     df = add_volume_ma(df, period=vol_ma_period)
     df = add_vwap(df)
+    df = add_macd(df)
     return df
