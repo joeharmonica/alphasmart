@@ -1,0 +1,96 @@
+@import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700;900&family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap");
+@import "tailwindcss";
+
+/* ============================================================
+   Tailwind v4 Theme — AlphaSMART Design System
+   "Institutional Brutalism": sharp edges, tonal depth, neon precision
+   ============================================================ */
+@theme {
+  /* Surface hierarchy (darkest → lightest) */
+  --color-surface-lowest:         #0a0e13;
+  --color-surface:                #101419;
+  --color-surface-low:            #181c21;
+  --color-surface-container:      #1c2025;
+  --color-surface-high:           #262a30;
+  --color-surface-bright:         #31353b;
+
+  /* Text */
+  --color-on-surface:             #e0e2ea;
+  --color-on-surface-muted:       #b9cbbe;
+
+  /* Primary — neon mint (profit, primary actions) */
+  --color-primary:                #00ffb2;
+  --color-primary-dim:            #00e29d;
+  --color-on-primary:             #003824;
+
+  /* Tertiary — soft red (loss, risk, alerts) */
+  --color-tertiary:               #ffb3ac;
+
+  /* Neutral outlines */
+  --color-outline:                #83958a;
+  --color-outline-dim:            #3a4a41;
+
+  /* Error */
+  --color-error:                  #ffb4ab;
+  --color-error-container:        #93000a;
+
+  /* Typography — three-font system */
+  --font-headline:                "Space Grotesk", sans-serif;
+  --font-body:                    "Inter", sans-serif;
+  --font-mono:                    "JetBrains Mono", monospace;
+
+  /* No-radius rule: sharp corners everywhere */
+  --radius:                       0px;
+  --radius-sm:                    0px;
+  --radius-md:                    0px;
+  --radius-lg:                    0px;
+  --radius-xl:                    0px;
+}
+
+/* ============================================================
+   Base styles
+   ============================================================ */
+html {
+  color-scheme: dark;
+}
+
+body {
+  background-color: #101419;
+  color: #e0e2ea;
+  font-family: "Inter", sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ============================================================
+   Custom utilities
+   ============================================================ */
+.font-headline {
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.font-mono {
+  font-family: "JetBrains Mono", monospace;
+}
+
+/* Scrollbar suppression for data-dense panels */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Glass panel for floating overlays */
+.glass-panel {
+  background: rgba(54, 57, 63, 0.6);
+  backdrop-filter: blur(20px);
+}
+
+/* Ambient glow decoration */
+.glow-primary {
+  filter: blur(80px);
+  background: rgba(0, 255, 178, 0.06);
+}

@@ -81,6 +81,7 @@ class BatchRunner:
         self,
         strategy_factories: dict[str, Callable[[str], Strategy]],
         fetch_if_missing: bool = True,
+        params_override: dict[str, dict] | None = None,
     ) -> pd.DataFrame:
         """
         Run all strategies over all symbols and timeframes.
@@ -88,11 +89,16 @@ class BatchRunner:
         Args:
             strategy_factories: dict mapping strategy name → callable(symbol) → Strategy
             fetch_if_missing:   If True, auto-fetch and store data not already in DB
+            params_override:    Optional dict keyed by "strategy::symbol::timeframe" →
+                                params dict. When present, instantiates the strategy with
+                                those params instead of the factory defaults.
 
         Returns:
             pd.DataFrame with one row per (strategy, symbol, timeframe) combination.
             Columns include all BacktestMetrics fields plus strategy/symbol/timeframe/gate1_pass.
         """
+        from src.backtest.optimizer import _make_strategy as _opt_make
+
         symbols = self.stocks + self.cryptos
         rows: list[dict] = []
         total = sum(
@@ -118,7 +124,12 @@ class BatchRunner:
                     done += 1
                     logger.info(f"[{done}/{total}] {strat_name} | {symbol} | {tf}")
                     try:
-                        strategy = factory(symbol)
+                        override_key = f"{strat_name}::{symbol}::{tf}"
+                        is_optimized = bool(params_override and override_key in params_override)
+                        if is_optimized:
+                            strategy = _opt_make(strat_name, symbol, params_override[override_key])
+                        else:
+                            strategy = factory(symbol)
                         config = BacktestConfig(
                             initial_capital=self.initial_capital,
                             # Allow full-portfolio sizing for backtesting.
@@ -148,6 +159,7 @@ class BatchRunner:
                             "n_bars":         m.n_bars,
                             "gate1_pass":     m.passes_gate_1(),
                             "halted":         result.halted,
+                            "is_optimized":   is_optimized,
                         })
                     except Exception as exc:
                         logger.error(f"Backtest failed for {strat_name}/{symbol}/{tf}: {exc}")

@@ -20,6 +20,9 @@ build/
 *.sqlite
 *.sqlite3
 
+# Local optimization results (machine-specific tuning, not source truth)
+optimized_params.json
+
 # Logs
 logs/
 *.log
