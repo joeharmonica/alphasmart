@@ -44,6 +44,8 @@ from src.strategy.zscore_reversion import ZScoreReversionStrategy
 from src.strategy.momentum_long import MomentumLongStrategy
 from src.strategy.vwap_reversion import VWAPReversionStrategy
 from src.strategy.alpha_composite import AlphaCompositeStrategy
+from src.strategy.alpha_composite_v2 import AlphaCompositeTrendV2, AlphaMomentumV2
+from src.strategy.regime_filter import RegimeFilteredStrategy
 
 # ---------------------------------------------------------------------------
 # Config
@@ -93,6 +95,15 @@ def _save_opt_params(
     tmp.write_text(_json.dumps(store, indent=2))
     os.replace(tmp, OPT_PARAMS_PATH)
 
+def _regime(sym: str, base_factory) -> RegimeFilteredStrategy:
+    """Wrap a base strategy with the SPY SMA200 regime filter."""
+    try:
+        return RegimeFilteredStrategy.from_db(base_factory(sym), DB_URL)
+    except ValueError:
+        # SPY data not in DB — fall back to unfiltered base strategy
+        return base_factory(sym)
+
+
 STRATEGY_MAP = {
     # --- Original 5 ---
     "ema_crossover":    lambda sym: EMACrossoverStrategy(sym),
@@ -109,6 +120,19 @@ STRATEGY_MAP = {
     "vwap_reversion":   lambda sym: VWAPReversionStrategy(sym),
     # --- Proprietary ---
     "alpha_composite":  lambda sym: AlphaCompositeStrategy(sym),
+    # --- V2 data-driven composites (Step 4) ---
+    "alpha_trend_v2":   lambda sym: AlphaCompositeTrendV2(sym),
+    "alpha_momentum_v2": lambda sym: AlphaMomentumV2(sym),
+    # --- Regime-filtered variants (Step 3) — SPY SMA200 bear filter ---
+    "ema_crossover+regime":    lambda sym: _regime(sym, EMACrossoverStrategy),
+    "donchian_bo+regime":      lambda sym: _regime(sym, DonchianBreakoutStrategy),
+    "macd_momentum+regime":    lambda sym: _regime(sym, MACDMomentumStrategy),
+    "triple_screen+regime":    lambda sym: _regime(sym, TripleScreenStrategy),
+    "atr_breakout+regime":     lambda sym: _regime(sym, ATRBreakoutStrategy),
+    "momentum_long+regime":    lambda sym: _regime(sym, MomentumLongStrategy),
+    "alpha_composite+regime":  lambda sym: _regime(sym, AlphaCompositeStrategy),
+    "alpha_trend_v2+regime":   lambda sym: _regime(sym, AlphaCompositeTrendV2),
+    "alpha_momentum_v2+regime": lambda sym: _regime(sym, AlphaMomentumV2),
 }
 
 STRATEGY_LABELS = {
@@ -127,6 +151,19 @@ STRATEGY_LABELS = {
     "vwap_reversion":   "VWAP Reversion",
     # --- Proprietary ---
     "alpha_composite":  "Alpha Composite ✦",
+    # --- V2 data-driven composites ---
+    "alpha_trend_v2":   "Alpha Trend V2 ✦",
+    "alpha_momentum_v2": "Alpha Momentum V2 ✦",
+    # --- Regime-filtered variants ---
+    "ema_crossover+regime":    "EMA Crossover + Regime",
+    "donchian_bo+regime":      "Donchian BO + Regime",
+    "macd_momentum+regime":    "MACD Momentum + Regime",
+    "triple_screen+regime":    "Triple Screen + Regime",
+    "atr_breakout+regime":     "ATR Breakout + Regime",
+    "momentum_long+regime":    "Momentum + Regime",
+    "alpha_composite+regime":  "Alpha Composite + Regime ✦",
+    "alpha_trend_v2+regime":   "Alpha Trend V2 + Regime ✦",
+    "alpha_momentum_v2+regime": "Alpha Momentum V2 + Regime ✦",
 }
 
 # ---------------------------------------------------------------------------

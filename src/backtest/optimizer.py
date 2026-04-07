@@ -31,6 +31,7 @@ from src.strategy.zscore_reversion import ZScoreReversionStrategy
 from src.strategy.momentum_long import MomentumLongStrategy
 from src.strategy.vwap_reversion import VWAPReversionStrategy
 from src.strategy.alpha_composite import AlphaCompositeStrategy
+from src.strategy.alpha_composite_v2 import AlphaCompositeTrendV2, AlphaMomentumV2
 
 # ---------------------------------------------------------------------------
 # Parameter grids — exhaustive but bounded
@@ -95,6 +96,20 @@ PARAM_GRIDS: dict[str, dict[str, list]] = {
         "rsi_weight":      [0.30, 0.35, 0.40],
         "entry_threshold": [0.45, 0.50, 0.55],
     },
+    # --- V2 data-driven composites (Step 4) — focused 4-dim grids ≤81 combos ---
+    # Weights fixed at data-driven defaults; tune EMA, RSI, and entry threshold only.
+    "alpha_trend_v2": {
+        "fast_ema":        [10, 13, 15],
+        "slow_ema":        [28, 30, 35],
+        "rsi_oversold":    [38.0, 40.0, 42.0],
+        "entry_threshold": [0.47, 0.50, 0.53],
+    },
+    "alpha_momentum_v2": {
+        "fast_ema":        [8, 10, 13],
+        "slow_ema":        [22, 25, 28],
+        "rsi_oversold":    [38.0, 40.0, 42.0],
+        "entry_threshold": [0.42, 0.45, 0.48],
+    },
 }
 
 # Primary 2D axes for the stability heatmap (ax1=y-axis, ax2=x-axis)
@@ -109,13 +124,16 @@ STABILITY_AXES: dict[str, tuple[str, str]] = {
     "zscore_reversion":("period", "entry_z"),
     "momentum_long":   ("lookback_period", "entry_threshold"),
     "vwap_reversion":  ("vwap_period", "entry_z"),
-    "alpha_composite": ("trend_weight", "entry_threshold"),
+    "alpha_composite":   ("trend_weight", "entry_threshold"),
+    "alpha_trend_v2":    ("trend_weight", "entry_threshold"),
+    "alpha_momentum_v2": ("rsi_weight",   "entry_threshold"),
 }
 
 # Walk-forward window sizes in bars — scaled per timeframe in run_optimization()
-_IS_YEARS  = 3    # 3 years in-sample
-_OOS_YEARS = 1    # 1 year out-of-sample
-_STEP_YEARS = 1   # advance 1 year per fold
+# Set to IS=2yr / OOS=6mo / STEP=6mo → ≥3 folds on 5yr daily data (lesson #5)
+_IS_YEARS   = 2.0   # 2 years in-sample
+_OOS_YEARS  = 0.5   # 6 months out-of-sample
+_STEP_YEARS = 0.5   # advance 6 months per fold
 
 # Optimization objectives
 OptObjective = Literal["sharpe", "cagr", "max_drawdown", "profit_factor"]
@@ -137,8 +155,10 @@ def _make_strategy(strategy_key: str, symbol: str, params: dict):
         "atr_breakout":     ATRBreakoutStrategy,
         "zscore_reversion": ZScoreReversionStrategy,
         "momentum_long":    MomentumLongStrategy,
-        "vwap_reversion":   VWAPReversionStrategy,
-        "alpha_composite":  AlphaCompositeStrategy,
+        "vwap_reversion":    VWAPReversionStrategy,
+        "alpha_composite":   AlphaCompositeStrategy,
+        "alpha_trend_v2":    AlphaCompositeTrendV2,
+        "alpha_momentum_v2": AlphaMomentumV2,
     }
     if strategy_key not in cls_map:
         raise ValueError(f"Unknown strategy: {strategy_key}")
@@ -224,14 +244,15 @@ def _generate_combos(strategy_key: str, custom_grid: dict | None = None) -> list
             continue
         if strategy_key == "triple_screen" and params.get("oversold_level", 0) >= params.get("overbought_level", 0):
             continue
-        # AlphaComposite: weights must sum to ~1 (third weight is computed as remainder)
-        if strategy_key == "alpha_composite":
-            tw = params.get("trend_weight", 0)
-            rw = params.get("rsi_weight", 0)
-            vw = round(1.0 - tw - rw, 4)
-            if vw < 0.05 or vw > 0.6:
-                continue
-            params["vol_weight"] = vw
+        # AlphaComposite family: if weights are in the grid, validate they sum to ~1
+        if strategy_key in ("alpha_composite", "alpha_trend_v2", "alpha_momentum_v2"):
+            if "trend_weight" in params and "rsi_weight" in params:
+                tw = params["trend_weight"]
+                rw = params["rsi_weight"]
+                vw = round(1.0 - tw - rw, 4)
+                if vw < 0.05 or vw > 0.6:
+                    continue
+                params["vol_weight"] = vw
             if params.get("fast_ema", 0) >= params.get("slow_ema", 99):
                 continue
             if params.get("exit_threshold", 0) >= params.get("entry_threshold", 1):

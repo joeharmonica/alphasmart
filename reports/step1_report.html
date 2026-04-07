@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AlphaSMART — Step 1 Backtest Report</title>
+<style>
+  :root {
+    --bg: #0f1117; --surface: #1a1d27; --border: #2d3148;
+    --text: #e2e8f0; --muted: #8892a4; --accent: #6366f1;
+    --green: #22c55e; --red: #ef4444; --yellow: #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Inter', system-ui, sans-serif; background: var(--bg); color: var(--text); padding: 2rem; }
+  h1 { font-size: 1.8rem; font-weight: 700; color: var(--accent); margin-bottom: 0.25rem; }
+  h2 { font-size: 1.1rem; font-weight: 600; color: var(--muted); margin: 2rem 0 1rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  .meta { color: var(--muted); font-size: 0.85rem; margin-bottom: 2rem; }
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
+  .kpi { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; }
+  .kpi-label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .kpi-value { font-size: 1.5rem; font-weight: 700; margin-top: 0.25rem; }
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.red   { color: var(--red); }
+  .kpi-value.yellow { color: var(--yellow); }
+  .kpi-value.accent { color: var(--accent); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-bottom: 2rem; }
+  th { background: var(--surface); color: var(--muted); font-weight: 600; padding: 0.6rem 0.75rem; text-align: left; border-bottom: 2px solid var(--border); white-space: nowrap; }
+  td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  tr:hover td { background: rgba(99,102,241,0.06); }
+  tr.highlight td { background: rgba(34,197,94,0.06); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; }
+  .badge-pass { background: rgba(34,197,94,0.15); color: var(--green); }
+  .badge-fail { background: rgba(239,68,68,0.12); color: var(--red); }
+  .note { background: var(--surface); border-left: 3px solid var(--yellow); padding: 1rem 1.25rem; border-radius: 0 6px 6px 0; margin-bottom: 1.5rem; font-size: 0.88rem; color: var(--muted); line-height: 1.6; }
+  .note strong { color: var(--text); }
+  .section { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.5rem; margin-bottom: 2rem; overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<h1>AlphaSMART — Step 1 Backtest Report</h1>
+<p class="meta">Generated: 2026-04-07 &nbsp;|&nbsp; Period: 2021-04-06 → 2026-04-06 (5yr) &nbsp;|&nbsp; Universe: 17 stocks + 2 crypto &nbsp;|&nbsp; Capital: $100,000</p>
+
+<div class="kpi-grid">
+  <div class="kpi"><div class="kpi-label">Total Runs</div><div class="kpi-value accent">231</div></div>
+  <div class="kpi"><div class="kpi-label">Symbols</div><div class="kpi-value accent">19</div></div>
+  <div class="kpi"><div class="kpi-label">Strategies</div><div class="kpi-value accent">11</div></div>
+  <div class="kpi"><div class="kpi-label">Gate 1 Passes</div><div class="kpi-value red">0/231</div></div>
+  <div class="kpi"><div class="kpi-label">Best Sharpe</div><div class="kpi-value yellow">1.954</div></div>
+  <div class="kpi"><div class="kpi-label">Best CAGR</div><div class="kpi-value yellow">91.0%</div></div>
+  <div class="kpi"><div class="kpi-label">Opt Symbols</div><div class="kpi-value accent">5</div></div>
+  <div class="kpi"><div class="kpi-label">Opt G1 Passes</div><div class="kpi-value red">0</div></div>
+</div>
+
+<div class="note">
+  <strong>Finding:</strong> Zero Gate 1 passes (Sharpe &gt; 1.2 AND MaxDD &lt; 25% AND ≥ 100 trades AND positive return) across all 231 runs with optimized parameters.
+  The 2021–2026 backtest period includes the severe 2022 bear market (SPY −19%, NASDAQ −33%), which consistently triggers the 20% circuit-breaker drawdown limit or degrades Sharpe.
+  High-Sharpe parameter combos win by <em>concentration</em> (1–13 trades) which fails the ≥100 trade count gate.
+  High-trade-count combos produce insufficient Sharpe against the 2022 volatility regime.
+  <strong>Next step:</strong> IS/OOS sub-period analysis, regime-filtered strategies, or relaxed trade-count threshold for mean-reversion strategies.
+</div>
+
+<h2>Strategy Summary (Optimized Params)</h2>
+<div class="section">
+<table>
+  <tr><th>Strategy</th><th>Avg Sharpe</th><th>Avg CAGR</th><th>Avg MaxDD</th><th>Gate 1 (Opt subset)</th></tr>
+  
+      <tr>
+        <td><strong>ema_crossover</strong></td>
+        <td>0.436</td>
+        <td>4.2%</td>
+        <td>6.6%</td>
+        <td>0/21</td>
+      </tr>
+      <tr>
+        <td><strong>rsi_reversion</strong></td>
+        <td>0.363</td>
+        <td>0.3%</td>
+        <td>1.6%</td>
+        <td>0/21</td>
+      </tr>
+      <tr>
+        <td><strong>momentum_long</strong></td>
+        <td>0.276</td>
+        <td>3.8%</td>
+        <td>16.4%</td>
+        <td>0/21</td>
+      </tr>
+      <tr>
+        <td><strong>macd_momentum</strong></td>
+        <td>0.232</td>
+        <td>1.6%</td>
+        <td>10.8%</td>
+        <td>0/21</td>
+      </tr>
+      <tr>
+        <td><strong>alpha_composite</strong></td>
+        <td>0.104</td>
+        <td>4.9%</td>
+        <td>17.5%</td>
+        <td>0/21</td>
+      </tr>
+      <tr>
+        <td><strong>atr_breakout</strong></td>
+        <td>0.069</td>
+        <td>0.1%</td>
+        <td>15.8%</td>
+        <td>0/21</td>
+      </tr>
+      <tr>
+        <td><strong>bb_reversion</strong></td>
+        <td>0.034</td>
+        <td>-0.5%</td>
+        <td>13.9%</td>
+        <td>0/21</td>
+      </tr>
+      <tr>
+        <td><strong>zscore_reversion</strong></td>
+        <td>-0.102</td>
+        <td>-1.0%</td>
+        <td>13.6%</td>
+        <td>0/21</td>
+      </tr>
+      <tr>
+        <td><strong>vwap_reversion</strong></td>
+        <td>-0.170</td>
+        <td>-3.0%</td>
+        <td>13.3%</td>
+        <td>0/21</td>
+      </tr>
+      <tr>
+        <td><strong>donchian_bo</strong></td>
+        <td>-0.269</td>
+        <td>0.5%</td>
+        <td>5.1%</td>
+        <td>0/21</td>
+      </tr>
+      <tr>
+        <td><strong>triple_screen</strong></td>
+        <td>-0.287</td>
+        <td>-2.0%</td>
+        <td>16.3%</td>
+        <td>0/21</td>
+      </tr>
+</table>
+</div>
+
+<h2>Top 20 — Optimized Batch (Ranked by Composite Score)</h2>
+<div class="section">
+<table>
+  <tr><th>#</th><th>Strategy</th><th>Symbol</th><th>TF</th><th>Sharpe</th><th>CAGR</th><th>MaxDD</th><th>Sortino</th><th>WinRate</th><th>Trades</th><th>TotalRet</th><th>Gate1</th></tr>
+  
+      <tr class="">
+        <td>1</td>
+        <td>alpha_composite</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.954</td>
+        <td>91.0%</td>
+        <td>21.9%</td>
+        <td>1.860</td>
+        <td>53.8%</td>
+        <td>13</td>
+        <td>68.0%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>2</td>
+        <td>ema_crossover</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.421</td>
+        <td>60.7%</td>
+        <td>20.7%</td>
+        <td>1.419</td>
+        <td>100.0%</td>
+        <td>1</td>
+        <td>45.2%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>3</td>
+        <td>momentum_long</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>0.972</td>
+        <td>30.2%</td>
+        <td>21.8%</td>
+        <td>0.644</td>
+        <td>100.0%</td>
+        <td>1</td>
+        <td>23.2%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>4</td>
+        <td>bb_reversion</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.213</td>
+        <td>24.5%</td>
+        <td>17.4%</td>
+        <td>0.661</td>
+        <td>74.4%</td>
+        <td>82</td>
+        <td>197.7%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>5</td>
+        <td>momentum_long</td>
+        <td>PLTR</td>
+        <td>1d</td>
+        <td>1.037</td>
+        <td>24.3%</td>
+        <td>20.6%</td>
+        <td>0.905</td>
+        <td>33.3%</td>
+        <td>6</td>
+        <td>132.3%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>6</td>
+        <td>momentum_long</td>
+        <td>TSLA</td>
+        <td>1d</td>
+        <td>0.735</td>
+        <td>18.5%</td>
+        <td>21.5%</td>
+        <td>0.351</td>
+        <td>100.0%</td>
+        <td>1</td>
+        <td>12.7%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>7</td>
+        <td>triple_screen</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.030</td>
+        <td>15.2%</td>
+        <td>16.9%</td>
+        <td>0.799</td>
+        <td>71.2%</td>
+        <td>111</td>
+        <td>102.3%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>8</td>
+        <td>alpha_composite</td>
+        <td>ETH/USDT</td>
+        <td>1d</td>
+        <td>0.741</td>
+        <td>19.4%</td>
+        <td>20.6%</td>
+        <td>0.888</td>
+        <td>38.2%</td>
+        <td>55</td>
+        <td>51.7%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>9</td>
+        <td>alpha_composite</td>
+        <td>BTC/USDT</td>
+        <td>1d</td>
+        <td>0.810</td>
+        <td>18.3%</td>
+        <td>21.3%</td>
+        <td>0.850</td>
+        <td>45.1%</td>
+        <td>71</td>
+        <td>46.8%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>10</td>
+        <td>macd_momentum</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.159</td>
+        <td>9.1%</td>
+        <td>10.4%</td>
+        <td>1.106</td>
+        <td>30.6%</td>
+        <td>62</td>
+        <td>54.4%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>11</td>
+        <td>vwap_reversion</td>
+        <td>AVGO</td>
+        <td>1d</td>
+        <td>1.008</td>
+        <td>7.9%</td>
+        <td>9.6%</td>
+        <td>0.727</td>
+        <td>72.4%</td>
+        <td>76</td>
+        <td>46.4%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>12</td>
+        <td>momentum_long</td>
+        <td>AVGO</td>
+        <td>1d</td>
+        <td>0.721</td>
+        <td>12.7%</td>
+        <td>20.2%</td>
+        <td>0.669</td>
+        <td>60.0%</td>
+        <td>5</td>
+        <td>60.5%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>13</td>
+        <td>momentum_long</td>
+        <td>META</td>
+        <td>1d</td>
+        <td>0.810</td>
+        <td>9.6%</td>
+        <td>20.9%</td>
+        <td>0.635</td>
+        <td>66.7%</td>
+        <td>3</td>
+        <td>44.4%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>14</td>
+        <td>alpha_composite</td>
+        <td>QQQ</td>
+        <td>1d</td>
+        <td>0.827</td>
+        <td>8.2%</td>
+        <td>14.0%</td>
+        <td>0.736</td>
+        <td>50.9%</td>
+        <td>108</td>
+        <td>47.8%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>15</td>
+        <td>momentum_long</td>
+        <td>ETH/USDT</td>
+        <td>1d</td>
+        <td>0.608</td>
+        <td>11.2%</td>
+        <td>18.1%</td>
+        <td>0.438</td>
+        <td>42.9%</td>
+        <td>7</td>
+        <td>36.1%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>16</td>
+        <td>donchian_bo</td>
+        <td>ETH/USDT</td>
+        <td>1d</td>
+        <td>0.890</td>
+        <td>6.9%</td>
+        <td>3.8%</td>
+        <td>0.642</td>
+        <td>31.8%</td>
+        <td>22</td>
+        <td>21.3%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>17</td>
+        <td>zscore_reversion</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>0.764</td>
+        <td>7.6%</td>
+        <td>12.8%</td>
+        <td>0.494</td>
+        <td>76.7%</td>
+        <td>43</td>
+        <td>43.8%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>18</td>
+        <td>bb_reversion</td>
+        <td>ETH/USDT</td>
+        <td>1d</td>
+        <td>0.615</td>
+        <td>9.5%</td>
+        <td>12.5%</td>
+        <td>0.206</td>
+        <td>69.2%</td>
+        <td>13</td>
+        <td>29.9%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>19</td>
+        <td>alpha_composite</td>
+        <td>BTC/USDT</td>
+        <td>4h</td>
+        <td>0.902</td>
+        <td>5.4%</td>
+        <td>3.4%</td>
+        <td>0.932</td>
+        <td>51.4%</td>
+        <td>35</td>
+        <td>5.8%</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>20</td>
+        <td>atr_breakout</td>
+        <td>TSLA</td>
+        <td>1d</td>
+        <td>0.640</td>
+        <td>10.6%</td>
+        <td>20.2%</td>
+        <td>0.516</td>
+        <td>30.6%</td>
+        <td>62</td>
+        <td>49.1%</td>
+        <td>❌</td>
+      </tr>
+</table>
+</div>
+
+<h2>Optimizer Results — Grid Search + Walk-Forward (IS=2yr / OOS=6mo / STEP=6mo)</h2>
+<p style="color:var(--muted);font-size:0.82rem;margin-bottom:0.75rem;">6 symbol/tf combos × 11 strategies = 66 optimization runs. Gate 2 = overfitting score ≥ 0.70 (OOS Sharpe / IS Sharpe across folds).</p>
+<div class="section">
+<table>
+  <tr><th>Strategy</th><th>Symbol</th><th>TF</th><th>Best Sharpe</th><th>Best CAGR</th><th>Best MaxDD</th><th>Best Trades</th><th>WF Folds</th><th>Overfitting Score</th><th>Valid Combos</th><th>Gate 1</th><th>Gate 2</th></tr>
+  
+      <tr class="">
+        <td>alpha_composite</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.954</td>
+        <td>91.0%</td>
+        <td>21.9%</td>
+        <td>13</td>
+        <td>5</td>
+        <td>0.597</td>
+        <td>1458</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>ema_crossover</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.421</td>
+        <td>60.7%</td>
+        <td>20.7%</td>
+        <td>1</td>
+        <td>5</td>
+        <td>1.277</td>
+        <td>25</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>bb_reversion</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.213</td>
+        <td>24.5%</td>
+        <td>17.4%</td>
+        <td>82</td>
+        <td>5</td>
+        <td>0.175</td>
+        <td>12</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>macd_momentum</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.159</td>
+        <td>9.1%</td>
+        <td>10.4%</td>
+        <td>62</td>
+        <td>5</td>
+        <td>2.113</td>
+        <td>8</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>alpha_composite</td>
+        <td>BTC/USDT</td>
+        <td>4h</td>
+        <td>1.149</td>
+        <td>8.9%</td>
+        <td>3.4%</td>
+        <td>35</td>
+        <td>17</td>
+        <td>0.761</td>
+        <td>1458</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>rsi_reversion</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.067</td>
+        <td>0.8%</td>
+        <td>0.4%</td>
+        <td>11</td>
+        <td>5</td>
+        <td>0.346</td>
+        <td>27</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>triple_screen</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>1.030</td>
+        <td>15.2%</td>
+        <td>16.9%</td>
+        <td>111</td>
+        <td>5</td>
+        <td>0.201</td>
+        <td>54</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>bb_reversion</td>
+        <td>BTC/USDT</td>
+        <td>4h</td>
+        <td>1.011</td>
+        <td>8.2%</td>
+        <td>3.2%</td>
+        <td>10</td>
+        <td>17</td>
+        <td>0.077</td>
+        <td>12</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>momentum_long</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>0.972</td>
+        <td>30.2%</td>
+        <td>21.8%</td>
+        <td>1</td>
+        <td>5</td>
+        <td>0.000</td>
+        <td>27</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>donchian_bo</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>0.963</td>
+        <td>4.4%</td>
+        <td>2.5%</td>
+        <td>104</td>
+        <td>5</td>
+        <td>1.110</td>
+        <td>7</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>ema_crossover</td>
+        <td>SPY</td>
+        <td>1d</td>
+        <td>0.893</td>
+        <td>0.9%</td>
+        <td>1.2%</td>
+        <td>17</td>
+        <td>5</td>
+        <td>25.197</td>
+        <td>25</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>donchian_bo</td>
+        <td>ETH/USDT</td>
+        <td>1d</td>
+        <td>0.890</td>
+        <td>6.9%</td>
+        <td>3.8%</td>
+        <td>22</td>
+        <td>1</td>
+        <td>0.000</td>
+        <td>7</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>alpha_composite</td>
+        <td>QQQ</td>
+        <td>1d</td>
+        <td>0.827</td>
+        <td>8.2%</td>
+        <td>14.0%</td>
+        <td>108</td>
+        <td>5</td>
+        <td>1.665</td>
+        <td>1458</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>alpha_composite</td>
+        <td>BTC/USDT</td>
+        <td>1d</td>
+        <td>0.810</td>
+        <td>18.3%</td>
+        <td>21.3%</td>
+        <td>71</td>
+        <td>1</td>
+        <td>0.000</td>
+        <td>1458</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>ema_crossover</td>
+        <td>BTC/USDT</td>
+        <td>4h</td>
+        <td>0.810</td>
+        <td>2.9%</td>
+        <td>3.0%</td>
+        <td>25</td>
+        <td>17</td>
+        <td>0.506</td>
+        <td>25</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>momentum_long</td>
+        <td>BTC/USDT</td>
+        <td>1d</td>
+        <td>0.796</td>
+        <td>7.1%</td>
+        <td>6.9%</td>
+        <td>10</td>
+        <td>1</td>
+        <td>0.540</td>
+        <td>27</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>zscore_reversion</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>0.764</td>
+        <td>7.6%</td>
+        <td>12.8%</td>
+        <td>43</td>
+        <td>5</td>
+        <td>1.356</td>
+        <td>36</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>ema_crossover</td>
+        <td>QQQ</td>
+        <td>1d</td>
+        <td>0.761</td>
+        <td>1.1%</td>
+        <td>2.2%</td>
+        <td>20</td>
+        <td>5</td>
+        <td>1.745</td>
+        <td>25</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>alpha_composite</td>
+        <td>ETH/USDT</td>
+        <td>1d</td>
+        <td>0.741</td>
+        <td>19.4%</td>
+        <td>20.6%</td>
+        <td>55</td>
+        <td>1</td>
+        <td>0.000</td>
+        <td>1458</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>macd_momentum</td>
+        <td>BTC/USDT</td>
+        <td>1d</td>
+        <td>0.719</td>
+        <td>4.6%</td>
+        <td>7.0%</td>
+        <td>32</td>
+        <td>1</td>
+        <td>0.000</td>
+        <td>8</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>vwap_reversion</td>
+        <td>NVDA</td>
+        <td>1d</td>
+        <td>0.714</td>
+        <td>7.0%</td>
+        <td>12.9%</td>
+        <td>56</td>
+        <td>5</td>
+        <td>2.984</td>
+        <td>18</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>momentum_long</td>
+        <td>BTC/USDT</td>
+        <td>4h</td>
+        <td>0.705</td>
+        <td>3.7%</td>
+        <td>6.1%</td>
+        <td>11</td>
+        <td>17</td>
+        <td>1.026</td>
+        <td>27</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>momentum_long</td>
+        <td>SPY</td>
+        <td>1d</td>
+        <td>0.693</td>
+        <td>2.4%</td>
+        <td>7.5%</td>
+        <td>7</td>
+        <td>5</td>
+        <td>0.000</td>
+        <td>27</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>bb_reversion</td>
+        <td>BTC/USDT</td>
+        <td>1d</td>
+        <td>0.686</td>
+        <td>6.2%</td>
+        <td>7.9%</td>
+        <td>8</td>
+        <td>1</td>
+        <td>0.000</td>
+        <td>12</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>atr_breakout</td>
+        <td>QQQ</td>
+        <td>1d</td>
+        <td>0.671</td>
+        <td>3.5%</td>
+        <td>10.6%</td>
+        <td>60</td>
+        <td>5</td>
+        <td>1.197</td>
+        <td>36</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>ema_crossover</td>
+        <td>BTC/USDT</td>
+        <td>1d</td>
+        <td>0.651</td>
+        <td>2.7%</td>
+        <td>4.3%</td>
+        <td>9</td>
+        <td>1</td>
+        <td>0.000</td>
+        <td>25</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>rsi_reversion</td>
+        <td>QQQ</td>
+        <td>1d</td>
+        <td>0.631</td>
+        <td>0.5%</td>
+        <td>0.9%</td>
+        <td>30</td>
+        <td>5</td>
+        <td>0.000</td>
+        <td>27</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>momentum_long</td>
+        <td>QQQ</td>
+        <td>1d</td>
+        <td>0.631</td>
+        <td>2.7%</td>
+        <td>8.5%</td>
+        <td>11</td>
+        <td>5</td>
+        <td>0.000</td>
+        <td>27</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+      <tr class="">
+        <td>bb_reversion</td>
+        <td>ETH/USDT</td>
+        <td>1d</td>
+        <td>0.615</td>
+        <td>9.5%</td>
+        <td>12.5%</td>
+        <td>13</td>
+        <td>1</td>
+        <td>3.291</td>
+        <td>12</td>
+        <td>❌</td>
+        <td>✅</td>
+      </tr>
+      <tr class="">
+        <td>momentum_long</td>
+        <td>ETH/USDT</td>
+        <td>1d</td>
+        <td>0.608</td>
+        <td>11.2%</td>
+        <td>18.1%</td>
+        <td>7</td>
+        <td>1</td>
+        <td>0.000</td>
+        <td>27</td>
+        <td>❌</td>
+        <td>❌</td>
+      </tr>
+</table>
+</div>
+
+<h2>Gate 1 Criteria Reference</h2>
+<div class="note">
+  <strong>Gate 1 (Viability):</strong> Sharpe &gt; 1.2 &nbsp;AND&nbsp; MaxDD &lt; 25% &nbsp;AND&nbsp; Trade Count ≥ 100 &nbsp;AND&nbsp; Total Return &gt; 0%<br>
+  <strong>Gate 2 (Robustness):</strong> Overfitting Score ≥ 0.70 &nbsp;(= avg OOS Sharpe / IS Sharpe across walk-forward folds)<br>
+  <strong>Walk-Forward:</strong> IS = 2yr (504 bars) / OOS = 6mo (126 bars) / Step = 6mo → ≥5 folds on 5yr daily data
+</div>
+
+</body>
+</html>

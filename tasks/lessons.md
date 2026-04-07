@@ -1,6 +1,6 @@
 # AlphaSMART — Lessons Learned
 
-_Updated: 2026-03-28 (session 3: optimization queue, opt-params persistence, JSON Infinity fix, 10 new symbols)_
+_Updated: 2026-04-07 (Steps 3–5: regime filter, V2 composites, intraday mini-batch)_
 
 ---
 
@@ -155,3 +155,101 @@ useEffect(() => {
 **Fix:** Added `params_override: dict[str, dict] | None = None` to `run_all()`. The key is `"strategy::symbol::timeframe"`. Inside the inner loop (where the runner already knows `tf`), check for the override key and call `_make_strategy(strat_name, symbol, params_override[key])` instead of the factory.
 
 **Rule:** When factories need context that is resolved at runtime inside a runner (e.g. timeframe), add it as a parallel override dict keyed by the full tuple, not via factory closures. This keeps factory signatures simple and override logic explicit.
+
+---
+
+## 14. yfinance Aggressively Rate-Limits Sequential Single-Ticker Requests
+
+**Symptom:** `StockDataFetcher failed for AAPL: Too Many Requests. Rate limited. Try after a while.` on the very first ticker when running a loop of `python main.py fetch <TICKER>` calls sequentially. Retry after 10s still fails for most tickers.
+
+**Root Cause:** yfinance 0.2.54 uses a session-level cookie + crumb that gets flagged as a bot when many separate Python processes each initialise a new `yf.Ticker()` session in rapid succession. Each `main.py fetch` invocation is a fresh process; Yahoo Finance sees burst traffic from the same IP.
+
+**Fix:** Use `yf.download(tickers=" ".join(symbols), period="5y", interval="1d", group_by="ticker")` in a single Python process. This fetches all tickers in one HTTP session with one crumb, circumventing per-ticker throttling entirely. The result is a MultiIndex DataFrame; slice each symbol with `raw[sym]` and store individually.
+
+**Rule:** Always batch-download equities with `yf.download()` in a single call rather than looping `yf.Ticker(sym).history()`. For scheduled refreshes, fetch all symbols at once and upsert.
+
+---
+
+## 15. Binance CCXT `fetch_ohlcv` Is Hard-Capped at 1,000 Bars Per Request
+
+**Symptom:** Requested 2,190 4h bars (2yr) for BTC/USDT but only received 1,000 bars (~166 days back), giving a date range of 2025-10-22 → 2026-04-06 — far short of the 2yr target.
+
+**Root Cause:** Binance REST API hard-limits OHLCV responses to 1,000 candles per request regardless of the `limit` parameter. CCXT respects this limit.
+
+**Fix:** Paginate manually: record `last_ts = bars[-1][0]`, set `since = last_ts + bar_ms`, loop until `len(bars) < 1000`. Accumulate all pages, deduplicate by index, then upsert the full history. For BTC/USDT 4h × 2yr this requires 5 requests yielding 4,380 bars.
+
+**Rule:** For Binance (and many other exchanges), assume a maximum of 1,000 bars per call. Always paginate with `since=` rather than relying on `limit` for multi-year histories.
+
+---
+
+## 16. High Sharpe + High Trade Count Is Mutually Exclusive on 2021–2026 Daily Data
+
+**Symptom:** Zero Gate 1 passes across 231 default runs AND 66 optimized runs. Top Sharpe results (> 1.2) all have trade counts of 1–13; strategies with ≥ 100 trades all have Sharpe < 1.2.
+
+**Root Cause:** The 2021–2026 period contains the 2022 bear market (S&P −19%, NASDAQ −33%) embedded in an otherwise bull market. The 20% circuit-breaker drawdown halts most trend-following strategies before they accumulate enough trades. High-Sharpe parameter combos select for very long hold periods (few entries) to survive 2022 intact. Mean-reversion strategies generate many trades but suffer degraded Sharpe in trending volatile regimes.
+
+**Impact:** The ≥ 100 trade Gate 1 criterion is the binding constraint, not Sharpe. The optimiser maximises Sharpe but is agnostic to trade count — a separate penalty or constraint is needed.
+
+**Lesson:** For a multi-regime backtesting period, consider: (a) regime-conditional Gate 1 (separate bull/bear thresholds), (b) a minimum-trade-count constraint in the optimiser objective, or (c) relaxing the trade count to ≥ 30 for strategies with mean-reversion logic (fewer signals are structurally expected).
+
+---
+
+## 17. `alpha_composite` Grid Search Is Disproportionately Slow — ~60s per Symbol
+
+**Symptom:** The optimizer took ~10 minutes just for `alpha_composite` on SPY during walk-forward, while all other 10 strategies completed in < 2 minutes combined.
+
+**Root Cause:** `alpha_composite` has 7 parameter dimensions. After filtering invalid combos (weights must sum to ~1.0, fast_ema < slow_ema), ~100+ valid combinations remain. With IS=2yr + 6 walk-forward folds, each optimization run performs ~700 backtests (100 combos × 7 pass), vs. ~50 for simple strategies like `donchian_bo` (7 combos × 7 = 49).
+
+**Impact:** A full optimization of all 11 strategies × 19 symbols would take several hours. Batch optimization at scale requires either (a) reducing the alpha_composite grid, (b) parallelising with `multiprocessing`, or (c) running a two-phase search (coarse then fine).
+
+**Rule:** When adding a composite strategy with many parameters, cap the per-dimension grid to ≤ 3 values × ≤ 4 dimensions = ≤ 81 combos. Profile the optimizer on a small symbol before scheduling a full-universe run. Include alpha_composite in time estimates separately — it can cost as much as all other strategies combined.
+
+---
+
+## 18. `requirements.txt` Listed Unused Packages that Block Installation on Newer Python
+
+**Symptom:** `pip install -r requirements.txt` failed with `ERROR: No matching distribution found for pandas-ta==0.3.14b` and `ERROR: No matching distribution found for alpaca-trade-api==3.3.2` on Python 3.11 / macOS ARM64.
+
+**Root Cause:** `pandas-ta==0.3.14b` was removed from PyPI (the `b` suffix is a non-standard version tag). `alpaca-trade-api==3.3.2` does not exist on PyPI (the package was superseded by `alpaca-py`). Neither package is imported anywhere in `src/`. Additionally, `vectorbt==0.26.2` conflicts with `numpy==2.2.4` (requires `<2.0.0`), and vectorbt is also unused in `src/`.
+
+**Fix:** Installed dependencies excluding the three unused packages. All functionality worked without them.
+
+**Rule:** Audit `requirements.txt` against actual imports in `src/` at least once per session. Use `grep -r "import vectorbt\|import pandas_ta\|import alpaca" src/` before assuming a listed package is required. Prune unused or broken dependencies early.
+
+---
+
+## 19. Intraday Risk Parameters Must Be Timeframe-Aware
+
+**Symptom:** The 2% daily loss circuit breaker tripped on bar 36 (9 days) for BTC/USDT 4h — a single 4h candle moved 3.6%, immediately halting the strategy before meaningful testing could occur.
+
+**Root Cause:** `RiskConfig.max_daily_loss_pct = 0.02` was designed for daily bars where a 2% single-bar loss is severe. For 4h crypto bars, a 2-6% single-bar move is routine. The check fires per-bar, not per-calendar-day, so it trips on normal 4h volatility.
+
+**Impact:** Most 4h crypto strategies are halted within the first few weeks, making results meaningless. The `halted=True` flag and extremely low trade counts (2-5) are symptoms.
+
+**Fix:** Risk limits need timeframe-aware defaults — or the `RiskConfig` should expose a `max_bar_loss_pct` vs `max_daily_loss_pct` distinction. For 4h backtest research, consider setting `max_daily_loss_pct=0.06` or disabling it and relying on the drawdown circuit breaker alone.
+
+**Rule:** When running backtests on intraday timeframes, review `RiskConfig` defaults. The drawdown circuit breaker (20%) is timeframe-agnostic and appropriate. The daily loss limit (2%) is calibrated for daily bars — multiply by `bars_per_day` for intraday equivalence.
+
+---
+
+## 20. Regime Filter Shifts Trade Count vs Sharpe Trade-Off — Does Not Resolve It
+
+**Symptom:** After adding the SPY SMA200 regime filter, still 0/171 Gate 1 passes across all trend strategies. Regime-filtered `alpha_momentum_v2` on NVDA improved from 9 trades (Sharpe=2.03) to 54 trades (Sharpe=1.05), but still below the ≥100 threshold.
+
+**Root Cause:** The regime filter prevents entries during SPY bear phases (primarily the 2022 drawdown). This removes some loss-generating trades, improving Sharpe, but also eliminates some recovery trades, reducing trade count. The fundamental constraint — the 2021-2026 period punishes both high trade count and low Sharpe simultaneously — is unchanged.
+
+**What the filter actually does:** Converts bear-period `long` → `flat`, which (a) prevents drawdowns from the 2022 bear market, (b) increases effective Sharpe by removing bad trades, (c) but also reduces trade count by ~25-40% for trend strategies.
+
+**Lesson:** The regime filter is a valid risk management tool (prevents entering trends during confirmed bear markets) but does not fix the Gate 1 trade count constraint. For that, consider: (a) lowering the Gate 1 trade count threshold to ≥30 for composite strategies that structurally have fewer signals, (b) running on multiple symbols simultaneously with portfolio-level counting, or (c) testing on a purely bull market period where more entries trigger.
+
+---
+
+## 21. Optimizer V2 Grid Must Fix Weights When Fewer Dimensions Are Optimized
+
+**Symptom:** `_generate_combos('alpha_trend_v2')` returned 0 combos when the V2 grid omitted `trend_weight` and `rsi_weight`. The weight-sum constraint computed `vol_weight = 1.0 - 0 - 0 = 1.0`, which exceeded the `> 0.6` cap, filtering every combination.
+
+**Root Cause:** The alpha_composite family's constraint in `_generate_combos` reads `trend_weight` and `rsi_weight` from the combo params and computes the remainder. If those keys aren't in the grid (because V2 fixes them at data-driven defaults), `params.get("trend_weight", 0)` returns 0, producing an invalid `vol_weight`.
+
+**Fix:** Guard the weight constraint with `if "trend_weight" in params and "rsi_weight" in params:`. When weights are fixed at strategy defaults (not in the grid), skip the constraint check — the constructor validates the weights independently at instantiation.
+
+**Rule:** When reducing a parameter grid for a strategy subclass, check whether the parent class's optimizer constraints reference those omitted parameters. Guard constraints with `in params` checks rather than relying on `.get(..., 0)` defaults.

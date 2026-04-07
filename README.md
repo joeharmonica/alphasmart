@@ -14,8 +14,128 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **2 — Core Engine** | Strategy abstraction, backtester, risk engine | ✅ Complete |
 | **3 — Optimization + LLM** | Walk-forward, grid search, Claude copilot, simulation | ✅ Complete |
 | **4 — Dashboard** | React UI, Next.js, optimization queue, opt-params persistence | ✅ Complete |
+| **Step 1 Live Run** | Full data fetch, batch backtest, optimization, reports | ✅ 2026-04-07 |
+| **Steps 3–5** | Regime filter, V2 composites, intraday mini-batch | ✅ 2026-04-07 |
 | 5 — Forward Testing | Paper trading, 30-day run | 🔜 Next |
 | 6 — Live Deployment | Real capital, broker integration | 🔜 Planned |
+
+---
+
+## Step 1 Live Run — Results (2026-04-07)
+
+### Data Fetched
+
+| Asset Class | Symbols | Timeframe | Bars | Date Range |
+|-------------|---------|-----------|------|------------|
+| Equities | AAPL, MSFT, META, NVDA, GOOG, AMZN, AVGO, ASML, NOW, PLTR, CRWD, TSLA, NVO, V, MA, SPY, QQQ (17) | Daily (1d) | 1,256 each | 2021-04-06 → 2026-04-06 |
+| Crypto | BTC/USDT, ETH/USDT | Daily (1d) | 730 each | 2024-04-07 → 2026-04-06 |
+| Crypto | BTC/USDT, ETH/USDT | 4-hour (4h) | 4,380 each | 2024-04-06 → 2026-04-06 |
+
+**Total DB rows:** ~32,600 OHLCV bars across 21 symbol/timeframe combinations.
+**Data source:** yfinance (equities, batch download), CCXT/Binance (crypto, paginated).
+
+> **Note:** yfinance rate-limits aggressively on sequential single-ticker requests. Batch download via `yf.download()` with all tickers in one call bypasses throttling. See Lesson 14.
+
+### Batch Backtest (Default Parameters)
+
+- **Runs:** 231 (11 strategies × 17 stocks × 1d + 11 × 2 crypto × 2 timeframes)
+- **Gate 1 passes:** 0 / 231
+- **Best Sharpe (default params):** 1.10 — alpha_composite / NVDA / 1d
+
+### Parameter Optimization (Grid Search + Walk-Forward)
+
+Walk-forward settings: **IS = 2yr (504 bars) / OOS = 6mo (126 bars) / Step = 6mo → 5 folds** on 5-year daily data.
+
+- **Optimization runs:** 66 (11 strategies × 6 symbol/tf combos: SPY/1d, NVDA/1d, QQQ/1d, BTC/1d, ETH/1d, BTC/4h)
+- **Gate 1 passes:** 0 / 66
+- **Gate 2 passes** (robustness only, ≥0.70 OOS/IS ratio): 26 / 66
+- **Best optimized Sharpe:** 1.95 — alpha_composite / NVDA / 1d (13 trades — fails ≥100 trade gate)
+- **Nearest Gate 1 miss:** triple_screen / NVDA / 1d — Sharpe 1.03, 111 trades (Sharpe just below 1.2)
+
+### Batch Backtest (Optimized Parameters)
+
+- **Runs:** 231 (same universe, optimized params injected where available)
+- **Gate 1 passes:** 0 / 231
+- **Top result:** alpha_composite / NVDA / 1d — Sharpe 1.95, CAGR 91%, MaxDD 21.9% (13 trades ❌)
+
+---
+
+## Steps 3–5 Live Run — Results (2026-04-07)
+
+### Step 3: Market Regime Filter
+
+Added `src/strategy/regime_filter.py` — `RegimeFilteredStrategy` wraps any base strategy and converts `long` → `flat` whenever SPY is below its 200-day SMA (bear regime). The filter is causal: rolling SMA200 is pre-computed from SPY daily data at construction time; no lookahead.
+
+**Regime-filtered batch:** 342 runs (9 trend/composite strategies × 19 symbols × 2 variants: unfiltered + filtered)
+
+| | Gate 1 passes | Best Sharpe |
+|---|---|---|
+| Unfiltered | 0 / 171 | 2.03 — alpha_momentum_v2 / NVDA (9 trades ❌) |
+| Regime-filtered | 0 / 171 | 1.16 — momentum_long+regime / META (5 trades ❌) |
+
+**Key finding:** The regime filter produces a meaningful trade-off. On NVDA, `alpha_momentum_v2` unfiltered achieves Sharpe 2.03 with only 9 trades; the regime-filtered version drops to Sharpe 1.05 but increases trade count to 54 — much closer to the ≥100 threshold. The filter prevents entries during the 2022 bear market but doesn't fix the fundamental trade count vs Sharpe conflict.
+
+**Notable improvements from the regime filter:**
+- `donchian_bo+regime` / TSLA: Sharpe 0.32 → 0.42
+- `alpha_composite+regime` / TSLA: Sharpe −0.25 → +0.23
+- `ema_crossover+regime` / META: Sharpe 0.82 → 1.00 (nearest miss)
+
+Mean-reversion strategies (`rsi_reversion`, `bb_reversion`, `zscore_reversion`, `vwap_reversion`) are excluded from the regime filter — they trade against the trend by design and filtering bear regimes would suppress their core signal.
+
+### Step 4: Data-Driven V2 Composites
+
+Added `src/strategy/alpha_composite_v2.py` with two variants derived from Step 1 optimization analysis:
+
+| Strategy | Key | Weights | EMA | Distinction |
+|---------|-----|---------|-----|-------------|
+| `AlphaCompositeTrendV2` | `alpha_trend_v2` | trend=0.50, rsi=0.30, vol=0.20 | 13/30 | EMA crossover dominates |
+| `AlphaMomentumV2` | `alpha_momentum_v2` | trend=0.35, rsi=0.40, vol=0.25 | 10/25 | RSI momentum leads |
+
+Both share `rsi_oversold=40.0` (the consistent top-performing threshold across NVDA/SPY/QQQ in Step 1 optimization). Parameter grids are bounded at 4 dimensions × 3 values = 81 combos each (vs ~700 for original `alpha_composite`).
+
+**Top V2 result:** `alpha_momentum_v2` / NVDA / 1d — Sharpe 2.03, but only 9 trades. With regime filter: Sharpe 1.05, 54 trades.
+
+### Step 5: Intraday Infrastructure
+
+**1h equity data (yfinance):** Rate-limited during this session after the regime batch run. Architectural limit: yfinance provides at most ~60 days of 1h data for free — approximately 390 bars. With IS=2yr walk-forward requiring ~3,276 1h bars, 60-day history is insufficient for meaningful walk-forward validation. Production intraday requires Polygon.io or Alpaca historical data API.
+
+**4h crypto mini-batch (16 runs):** BTC/USDT and ETH/USDT, 4,380 bars each (2yr).
+
+| Strategy | Symbol | Sharpe | Trades | Note |
+|---------|--------|--------|--------|------|
+| macd_momentum | ETH/USDT | 0.83 | 10 | Halted early — daily loss circuit breaker |
+| momentum_long | BTC/USDT | 0.35 | 11 | Halted |
+| donchian_bo | ETH/USDT | 0.29 | 156 | Best trade count |
+| atr_breakout | BTC/USDT | 0.25 | 79 | |
+
+**Key finding:** The 2% daily loss circuit breaker fires on individual 4h candles — a single crypto 4h bar can move 2–6%, instantly tripping the limit. Risk parameters (daily loss limit, circuit breaker thresholds) need timeframe-aware calibration just like annualisation factors. This is documented as Lesson #19.
+
+### Reports Generated (Steps 3–5)
+
+| File | Description |
+|------|-------------|
+| `reports/regime_comparison_20260407_215958.csv` | 342 runs: trend strategies unfiltered vs SPY SMA200-filtered |
+| `reports/intraday_4h_20260407_220231.csv` | 16 runs: 4h crypto mini-batch |
+
+---
+
+### Key Finding: Why Zero Gate 1 Passes
+
+The 2021–2026 backtest period contains two distinct regime problems:
+
+1. **2022 bear market** (S&P −19%, NASDAQ −33%): The 20% circuit-breaker drawdown limit halts most strategies mid-backtest, compressing total return and Sharpe for trend-following strategies.
+2. **Trade count vs. Sharpe conflict**: High-Sharpe parameter combinations (Sharpe > 1.2) achieve their ratio through *concentration* — 1 to 13 trades — far below the ≥ 100 trade Gate 1 threshold. Strategies with ≥ 100 trades produce insufficient Sharpe in the volatile 2021–2026 regime.
+
+**Gate 2 is more encouraging:** 26/66 optimization runs pass the OOS/IS stability threshold (≥ 0.70), meaning the optimized parameters generalise to unseen data reasonably well — the strategies aren't over-fit, they're just operating in a regime that penalises both drawdown and Sharpe simultaneously.
+
+### Reports Generated
+
+| File | Description |
+|------|-------------|
+| `reports/backtest_report_20260406_224906.csv` | Default-params batch: 231 runs |
+| `reports/backtest_optimized_20260407_072056.csv` | Optimized-params batch: 231 runs |
+| `reports/optimization_results.json` | Full optimizer output: 66 runs with Gate 1/2, overfitting scores, best params |
+| `reports/step1_report.html` | Self-contained HTML dashboard with KPI cards, strategy summary, top-20 rankings, optimizer table |
 
 ---
 
@@ -130,6 +250,12 @@ AlphaSMART ships with 11 strategies across three families:
 | Key | Name | Logic |
 |-----|------|-------|
 | `alpha_composite` | Alpha Composite ✦ | Weighted composite: EMA trend + RSI momentum + Volume confirmation |
+| `alpha_trend_v2` | Alpha Trend V2 ✦ | Trend-heavy (trend=0.50); data-driven defaults from Step 1 optimization |
+| `alpha_momentum_v2` | Alpha Momentum V2 ✦ | Momentum-focused (rsi=0.40); tighter EMA for more signals |
+
+### Regime-Filtered Variants
+
+Any trend/momentum strategy can be wrapped with `+regime` suffix to enable the **SPY SMA200 bear filter**: when SPY is below its 200-day SMA, long signals are suppressed. Registered variants: `ema_crossover+regime`, `donchian_bo+regime`, `macd_momentum+regime`, `triple_screen+regime`, `atr_breakout+regime`, `momentum_long+regime`, `alpha_composite+regime`, `alpha_trend_v2+regime`, `alpha_momentum_v2+regime`.
 
 All strategies are **long-only**, deterministic, and run through the same event-driven engine. No lookahead bias is possible — signals are generated from `data[0:i+1]` and executed at bar `i+1` open.
 
@@ -186,7 +312,7 @@ Sharpe, Sortino, and CAGR are annualised correctly for each timeframe via `bars_
 
 ## Optimization
 
-The optimizer runs a **grid search** across all parameter combinations followed by **walk-forward validation** (3-year in-sample, 1-year out-of-sample). Windows scale automatically with the timeframe.
+The optimizer runs a **grid search** across all parameter combinations followed by **walk-forward validation**. Default windows: **IS = 2yr / OOS = 6mo / Step = 6mo** — producing ≥ 5 folds on 5-year daily data. Windows scale automatically with the timeframe via `bars_per_year_for(timeframe)`.
 
 ### Optimization objectives
 
@@ -315,7 +441,9 @@ alphasmart/
 │   │   ├── zscore_reversion.py     # Rolling Z-Score Reversion
 │   │   ├── momentum_long.py        # Rate-of-Change Momentum
 │   │   ├── vwap_reversion.py       # Rolling VWAP Mean Reversion
-│   │   └── alpha_composite.py      # Proprietary weighted composite strategy
+│   │   ├── alpha_composite.py      # Proprietary weighted composite strategy
+│   │   ├── alpha_composite_v2.py   # AlphaCompositeTrendV2 + AlphaMomentumV2 (data-driven)
+│   │   └── regime_filter.py        # RegimeFilteredStrategy — SPY SMA200 bear filter
 │   ├── backtest/
 │   │   ├── engine.py               # Event-driven backtester (bar-by-bar, no lookahead)
 │   │   ├── metrics.py              # 13 performance metrics, timeframe-aware annualisation
@@ -372,7 +500,7 @@ alphasmart/
 │  DATA LAYER       yfinance (stocks) / CCXT (crypto)             │ ✅
 │                   19 symbols · Timeframes: 15m, 1h, 1d, 1wk     │
 ├─────────────────────────────────────────────────────────────────┤
-│  STRATEGY ENGINE  11 strategies across trend / reversion / prop  │ ✅
+│  STRATEGY ENGINE  13 strategies + 9 regime-filtered variants      │ ✅
 │                   Signal → Order → Fill pipeline                  │
 ├─────────────────────────────────────────────────────────────────┤
 │  BACKTEST ENGINE  Event-driven, bar-by-bar (no lookahead bias)   │ ✅
