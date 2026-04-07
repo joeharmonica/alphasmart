@@ -1,0 +1,1268 @@
+[
+  {
+    "strategy": "ema_crossover",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": 0.8934,
+    "best_cagr": 0.0094,
+    "best_max_drawdown": 0.0121,
+    "best_trade_count": 17,
+    "best_params": {
+      "fast_period": 10,
+      "slow_period": 26
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 25.197,
+    "valid_combos": 25
+  },
+  {
+    "strategy": "macd_momentum",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": 0.1299,
+    "best_cagr": 0.0024,
+    "best_max_drawdown": 0.0331,
+    "best_trade_count": 58,
+    "best_params": {
+      "fast_period": 12,
+      "slow_period": 26,
+      "signal_period": 9
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.6604,
+    "valid_combos": 8
+  },
+  {
+    "strategy": "donchian_bo",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": -1.2475,
+    "best_cagr": -0.005,
+    "best_max_drawdown": 0.0257,
+    "best_trade_count": 119,
+    "best_params": {
+      "period": 10
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": null,
+    "valid_combos": 7
+  },
+  {
+    "strategy": "triple_screen",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": 0.2479,
+    "best_cagr": 0.0092,
+    "best_max_drawdown": 0.0594,
+    "best_trade_count": 105,
+    "best_params": {
+      "macro_period": 100,
+      "stoch_period": 10,
+      "oversold_level": 25.0,
+      "overbought_level": 75.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.0,
+    "valid_combos": 54
+  },
+  {
+    "strategy": "atr_breakout",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": 0.4724,
+    "best_cagr": 0.0185,
+    "best_max_drawdown": 0.0713,
+    "best_trade_count": 56,
+    "best_params": {
+      "ema_period": 30,
+      "atr_period": 10,
+      "atr_mult": 1.5
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 1.367,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "momentum_long",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": 0.6933,
+    "best_cagr": 0.0237,
+    "best_max_drawdown": 0.0748,
+    "best_trade_count": 7,
+    "best_params": {
+      "lookback_period": 63,
+      "entry_threshold": 0.08,
+      "exit_threshold": -0.02
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.0,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "rsi_reversion",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": 0.4442,
+    "best_cagr": 0.0048,
+    "best_max_drawdown": 0.0083,
+    "best_trade_count": 9,
+    "best_params": {
+      "rsi_period": 14,
+      "oversold": 30,
+      "overbought": 65
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.3775,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "bb_reversion",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": 0.3545,
+    "best_cagr": 0.027,
+    "best_max_drawdown": 0.0982,
+    "best_trade_count": 46,
+    "best_params": {
+      "period": 30,
+      "std_dev": 1.5
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 1.6452,
+    "valid_combos": 12
+  },
+  {
+    "strategy": "zscore_reversion",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": 0.3727,
+    "best_cagr": 0.0238,
+    "best_max_drawdown": 0.0748,
+    "best_trade_count": 66,
+    "best_params": {
+      "period": 20,
+      "entry_z": 1.5,
+      "exit_z": 0.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 0.7997,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "vwap_reversion",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": 0.3966,
+    "best_cagr": 0.0157,
+    "best_max_drawdown": 0.0556,
+    "best_trade_count": 66,
+    "best_params": {
+      "vwap_period": 20,
+      "entry_z": 1.0,
+      "exit_z": 0.25
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 2.0145,
+    "valid_combos": 18
+  },
+  {
+    "strategy": "alpha_composite",
+    "symbol": "SPY",
+    "timeframe": "1d",
+    "best_sharpe": 0.3925,
+    "best_cagr": 0.0188,
+    "best_max_drawdown": 0.087,
+    "best_trade_count": 162,
+    "best_params": {
+      "fast_ema": 13,
+      "slow_ema": 40,
+      "rsi_period": 10,
+      "rsi_oversold": 40.0,
+      "trend_weight": 0.4,
+      "rsi_weight": 0.4,
+      "entry_threshold": 0.5,
+      "vol_weight": 0.2
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 3.8833,
+    "valid_combos": 1458
+  },
+  {
+    "strategy": "ema_crossover",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 1.4207,
+    "best_cagr": 0.607,
+    "best_max_drawdown": 0.2072,
+    "best_trade_count": 1,
+    "best_params": {
+      "fast_period": 13,
+      "slow_period": 50
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 1.2772,
+    "valid_combos": 25
+  },
+  {
+    "strategy": "macd_momentum",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 1.1592,
+    "best_cagr": 0.0911,
+    "best_max_drawdown": 0.1037,
+    "best_trade_count": 62,
+    "best_params": {
+      "fast_period": 8,
+      "slow_period": 26,
+      "signal_period": 7
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 2.1133,
+    "valid_combos": 8
+  },
+  {
+    "strategy": "donchian_bo",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 0.9634,
+    "best_cagr": 0.0442,
+    "best_max_drawdown": 0.0245,
+    "best_trade_count": 104,
+    "best_params": {
+      "period": 10
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 1.1097,
+    "valid_combos": 7
+  },
+  {
+    "strategy": "triple_screen",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 1.0304,
+    "best_cagr": 0.152,
+    "best_max_drawdown": 0.1689,
+    "best_trade_count": 111,
+    "best_params": {
+      "macro_period": 100,
+      "stoch_period": 10,
+      "oversold_level": 20.0,
+      "overbought_level": 80.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.2011,
+    "valid_combos": 54
+  },
+  {
+    "strategy": "atr_breakout",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 0.3007,
+    "best_cagr": 0.0338,
+    "best_max_drawdown": 0.2011,
+    "best_trade_count": 20,
+    "best_params": {
+      "ema_period": 20,
+      "atr_period": 10,
+      "atr_mult": 1.5
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 2.5825,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "momentum_long",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 0.9715,
+    "best_cagr": 0.302,
+    "best_max_drawdown": 0.2178,
+    "best_trade_count": 1,
+    "best_params": {
+      "lookback_period": 126,
+      "entry_threshold": 0.03,
+      "exit_threshold": -0.05
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.0,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "rsi_reversion",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 1.0674,
+    "best_cagr": 0.0083,
+    "best_max_drawdown": 0.0035,
+    "best_trade_count": 11,
+    "best_params": {
+      "rsi_period": 21,
+      "oversold": 35,
+      "overbought": 65
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.3461,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "bb_reversion",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 1.2127,
+    "best_cagr": 0.2449,
+    "best_max_drawdown": 0.1745,
+    "best_trade_count": 82,
+    "best_params": {
+      "period": 15,
+      "std_dev": 1.5
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.175,
+    "valid_combos": 12
+  },
+  {
+    "strategy": "zscore_reversion",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 0.7642,
+    "best_cagr": 0.0756,
+    "best_max_drawdown": 0.1283,
+    "best_trade_count": 43,
+    "best_params": {
+      "period": 60,
+      "entry_z": 1.5,
+      "exit_z": 0.25
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 1.3557,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "vwap_reversion",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 0.7138,
+    "best_cagr": 0.0695,
+    "best_max_drawdown": 0.1286,
+    "best_trade_count": 56,
+    "best_params": {
+      "vwap_period": 30,
+      "entry_z": 1.5,
+      "exit_z": 0.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 2.9844,
+    "valid_combos": 18
+  },
+  {
+    "strategy": "alpha_composite",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "best_sharpe": 1.9541,
+    "best_cagr": 0.9095,
+    "best_max_drawdown": 0.2193,
+    "best_trade_count": 13,
+    "best_params": {
+      "fast_ema": 13,
+      "slow_ema": 25,
+      "rsi_period": 10,
+      "rsi_oversold": 40.0,
+      "trend_weight": 0.4,
+      "rsi_weight": 0.3,
+      "entry_threshold": 0.45,
+      "vol_weight": 0.3
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.5968,
+    "valid_combos": 1458
+  },
+  {
+    "strategy": "ema_crossover",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": 0.7606,
+    "best_cagr": 0.0115,
+    "best_max_drawdown": 0.0218,
+    "best_trade_count": 20,
+    "best_params": {
+      "fast_period": 5,
+      "slow_period": 40
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 1.7446,
+    "valid_combos": 25
+  },
+  {
+    "strategy": "macd_momentum",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": 0.4662,
+    "best_cagr": 0.0144,
+    "best_max_drawdown": 0.0567,
+    "best_trade_count": 56,
+    "best_params": {
+      "fast_period": 8,
+      "slow_period": 26,
+      "signal_period": 9
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.4995,
+    "valid_combos": 8
+  },
+  {
+    "strategy": "donchian_bo",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": -0.1495,
+    "best_cagr": -0.0009,
+    "best_max_drawdown": 0.0129,
+    "best_trade_count": 103,
+    "best_params": {
+      "period": 10
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.0,
+    "valid_combos": 7
+  },
+  {
+    "strategy": "triple_screen",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": 0.0635,
+    "best_cagr": 0.0018,
+    "best_max_drawdown": 0.0897,
+    "best_trade_count": 89,
+    "best_params": {
+      "macro_period": 50,
+      "stoch_period": 21,
+      "oversold_level": 20.0,
+      "overbought_level": 75.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.5268,
+    "valid_combos": 54
+  },
+  {
+    "strategy": "atr_breakout",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": 0.6706,
+    "best_cagr": 0.0352,
+    "best_max_drawdown": 0.1063,
+    "best_trade_count": 60,
+    "best_params": {
+      "ema_period": 30,
+      "atr_period": 10,
+      "atr_mult": 2.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 1.1968,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "momentum_long",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": 0.6312,
+    "best_cagr": 0.0268,
+    "best_max_drawdown": 0.0853,
+    "best_trade_count": 11,
+    "best_params": {
+      "lookback_period": 63,
+      "entry_threshold": 0.08,
+      "exit_threshold": 0.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.0,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "rsi_reversion",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": 0.6315,
+    "best_cagr": 0.0055,
+    "best_max_drawdown": 0.0092,
+    "best_trade_count": 30,
+    "best_params": {
+      "rsi_period": 14,
+      "oversold": 35,
+      "overbought": 65
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.0,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "bb_reversion",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": 0.6022,
+    "best_cagr": 0.0423,
+    "best_max_drawdown": 0.0549,
+    "best_trade_count": 37,
+    "best_params": {
+      "period": 15,
+      "std_dev": 2.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 5,
+    "overfitting_score": 0.1083,
+    "valid_combos": 12
+  },
+  {
+    "strategy": "zscore_reversion",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": 0.1676,
+    "best_cagr": 0.0078,
+    "best_max_drawdown": 0.107,
+    "best_trade_count": 80,
+    "best_params": {
+      "period": 20,
+      "entry_z": 1.5,
+      "exit_z": 0.5
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 5.343,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "vwap_reversion",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": 0.2959,
+    "best_cagr": 0.013,
+    "best_max_drawdown": 0.0674,
+    "best_trade_count": 65,
+    "best_params": {
+      "vwap_period": 20,
+      "entry_z": 1.5,
+      "exit_z": 0.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 4.4797,
+    "valid_combos": 18
+  },
+  {
+    "strategy": "alpha_composite",
+    "symbol": "QQQ",
+    "timeframe": "1d",
+    "best_sharpe": 0.8266,
+    "best_cagr": 0.0816,
+    "best_max_drawdown": 0.1402,
+    "best_trade_count": 108,
+    "best_params": {
+      "fast_ema": 8,
+      "slow_ema": 40,
+      "rsi_period": 14,
+      "rsi_oversold": 40.0,
+      "trend_weight": 0.45,
+      "rsi_weight": 0.35,
+      "entry_threshold": 0.45,
+      "vol_weight": 0.2
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 5,
+    "overfitting_score": 1.6645,
+    "valid_combos": 1458
+  },
+  {
+    "strategy": "ema_crossover",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.6506,
+    "best_cagr": 0.0272,
+    "best_max_drawdown": 0.0428,
+    "best_trade_count": 9,
+    "best_params": {
+      "fast_period": 10,
+      "slow_period": 40
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 25
+  },
+  {
+    "strategy": "macd_momentum",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.7186,
+    "best_cagr": 0.0464,
+    "best_max_drawdown": 0.0704,
+    "best_trade_count": 32,
+    "best_params": {
+      "fast_period": 8,
+      "slow_period": 21,
+      "signal_period": 9
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 8
+  },
+  {
+    "strategy": "donchian_bo",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.4094,
+    "best_cagr": 0.0099,
+    "best_max_drawdown": 0.0123,
+    "best_trade_count": 22,
+    "best_params": {
+      "period": 40
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 7
+  },
+  {
+    "strategy": "triple_screen",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.3943,
+    "best_cagr": 0.0283,
+    "best_max_drawdown": 0.0877,
+    "best_trade_count": 39,
+    "best_params": {
+      "macro_period": 100,
+      "stoch_period": 14,
+      "oversold_level": 15.0,
+      "overbought_level": 80.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 54
+  },
+  {
+    "strategy": "atr_breakout",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.4088,
+    "best_cagr": 0.036,
+    "best_max_drawdown": 0.1177,
+    "best_trade_count": 45,
+    "best_params": {
+      "ema_period": 15,
+      "atr_period": 20,
+      "atr_mult": 1.5
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "momentum_long",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.7962,
+    "best_cagr": 0.0711,
+    "best_max_drawdown": 0.0693,
+    "best_trade_count": 10,
+    "best_params": {
+      "lookback_period": 63,
+      "entry_threshold": 0.03,
+      "exit_threshold": 0.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.5399,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "rsi_reversion",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.5798,
+    "best_cagr": 0.006,
+    "best_max_drawdown": 0.0002,
+    "best_trade_count": 1,
+    "best_params": {
+      "rsi_period": 21,
+      "oversold": 25,
+      "overbought": 65
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.5858,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "bb_reversion",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.6859,
+    "best_cagr": 0.0619,
+    "best_max_drawdown": 0.0788,
+    "best_trade_count": 8,
+    "best_params": {
+      "period": 25,
+      "std_dev": 2.5
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 12
+  },
+  {
+    "strategy": "zscore_reversion",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.0935,
+    "best_cagr": 0.0043,
+    "best_max_drawdown": 0.1357,
+    "best_trade_count": 32,
+    "best_params": {
+      "period": 30,
+      "entry_z": 1.5,
+      "exit_z": 0.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "vwap_reversion",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": -0.0155,
+    "best_cagr": -0.0066,
+    "best_max_drawdown": 0.1367,
+    "best_trade_count": 26,
+    "best_params": {
+      "vwap_period": 30,
+      "entry_z": 1.5,
+      "exit_z": 0.25
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 18
+  },
+  {
+    "strategy": "alpha_composite",
+    "symbol": "BTC/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.8102,
+    "best_cagr": 0.183,
+    "best_max_drawdown": 0.2128,
+    "best_trade_count": 71,
+    "best_params": {
+      "fast_ema": 10,
+      "slow_ema": 25,
+      "rsi_period": 14,
+      "rsi_oversold": 40.0,
+      "trend_weight": 0.4,
+      "rsi_weight": 0.35,
+      "entry_threshold": 0.45,
+      "vol_weight": 0.25
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 1458
+  },
+  {
+    "strategy": "ema_crossover",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.4053,
+    "best_cagr": 0.0251,
+    "best_max_drawdown": 0.0697,
+    "best_trade_count": 10,
+    "best_params": {
+      "fast_period": 15,
+      "slow_period": 40
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 25
+  },
+  {
+    "strategy": "macd_momentum",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.3349,
+    "best_cagr": 0.0215,
+    "best_max_drawdown": 0.0956,
+    "best_trade_count": 31,
+    "best_params": {
+      "fast_period": 12,
+      "slow_period": 21,
+      "signal_period": 7
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 8
+  },
+  {
+    "strategy": "donchian_bo",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.8899,
+    "best_cagr": 0.069,
+    "best_max_drawdown": 0.0376,
+    "best_trade_count": 22,
+    "best_params": {
+      "period": 25
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 7
+  },
+  {
+    "strategy": "triple_screen",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.3177,
+    "best_cagr": 0.0329,
+    "best_max_drawdown": 0.1356,
+    "best_trade_count": 30,
+    "best_params": {
+      "macro_period": 50,
+      "stoch_period": 14,
+      "oversold_level": 20.0,
+      "overbought_level": 75.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 54
+  },
+  {
+    "strategy": "atr_breakout",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.5292,
+    "best_cagr": 0.0708,
+    "best_max_drawdown": 0.1755,
+    "best_trade_count": 27,
+    "best_params": {
+      "ema_period": 30,
+      "atr_period": 10,
+      "atr_mult": 3.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "momentum_long",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.6083,
+    "best_cagr": 0.1125,
+    "best_max_drawdown": 0.1806,
+    "best_trade_count": 7,
+    "best_params": {
+      "lookback_period": 63,
+      "entry_threshold": 0.03,
+      "exit_threshold": 0.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "rsi_reversion",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.5802,
+    "best_cagr": 0.0041,
+    "best_max_drawdown": 0.0002,
+    "best_trade_count": 1,
+    "best_params": {
+      "rsi_period": 21,
+      "oversold": 25,
+      "overbought": 65
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.1217,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "bb_reversion",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.615,
+    "best_cagr": 0.0948,
+    "best_max_drawdown": 0.125,
+    "best_trade_count": 13,
+    "best_params": {
+      "period": 30,
+      "std_dev": 2.5
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 1,
+    "overfitting_score": 3.2911,
+    "valid_combos": 12
+  },
+  {
+    "strategy": "zscore_reversion",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": -0.004,
+    "best_cagr": -0.0076,
+    "best_max_drawdown": 0.1816,
+    "best_trade_count": 36,
+    "best_params": {
+      "period": 20,
+      "entry_z": 2.5,
+      "exit_z": 0.25
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "vwap_reversion",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.0203,
+    "best_cagr": -0.0073,
+    "best_max_drawdown": 0.1738,
+    "best_trade_count": 75,
+    "best_params": {
+      "vwap_period": 10,
+      "entry_z": 2.0,
+      "exit_z": 0.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 18
+  },
+  {
+    "strategy": "alpha_composite",
+    "symbol": "ETH/USDT",
+    "timeframe": "1d",
+    "best_sharpe": 0.7406,
+    "best_cagr": 0.1943,
+    "best_max_drawdown": 0.2064,
+    "best_trade_count": 55,
+    "best_params": {
+      "fast_ema": 10,
+      "slow_ema": 25,
+      "rsi_period": 14,
+      "rsi_oversold": 40.0,
+      "trend_weight": 0.45,
+      "rsi_weight": 0.4,
+      "entry_threshold": 0.45,
+      "vol_weight": 0.15
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 1,
+    "overfitting_score": 0.0,
+    "valid_combos": 1458
+  },
+  {
+    "strategy": "ema_crossover",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": 0.8097,
+    "best_cagr": 0.0285,
+    "best_max_drawdown": 0.0299,
+    "best_trade_count": 25,
+    "best_params": {
+      "fast_period": 5,
+      "slow_period": 50
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 17,
+    "overfitting_score": 0.5063,
+    "valid_combos": 25
+  },
+  {
+    "strategy": "macd_momentum",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": 0.1917,
+    "best_cagr": 0.0076,
+    "best_max_drawdown": 0.1053,
+    "best_trade_count": 89,
+    "best_params": {
+      "fast_period": 8,
+      "slow_period": 26,
+      "signal_period": 9
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 17,
+    "overfitting_score": 3.234,
+    "valid_combos": 8
+  },
+  {
+    "strategy": "donchian_bo",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": -0.418,
+    "best_cagr": -0.0021,
+    "best_max_drawdown": 0.033,
+    "best_trade_count": 95,
+    "best_params": {
+      "period": 50
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 17,
+    "overfitting_score": 1.2857,
+    "valid_combos": 7
+  },
+  {
+    "strategy": "triple_screen",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": 0.116,
+    "best_cagr": 0.0047,
+    "best_max_drawdown": 0.1241,
+    "best_trade_count": 114,
+    "best_params": {
+      "macro_period": 30,
+      "stoch_period": 10,
+      "oversold_level": 25.0,
+      "overbought_level": 75.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 17,
+    "overfitting_score": 0.0,
+    "valid_combos": 54
+  },
+  {
+    "strategy": "atr_breakout",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": 0.4806,
+    "best_cagr": 0.0273,
+    "best_max_drawdown": 0.0962,
+    "best_trade_count": 60,
+    "best_params": {
+      "ema_period": 30,
+      "atr_period": 20,
+      "atr_mult": 1.5
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 17,
+    "overfitting_score": 25.8757,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "momentum_long",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": 0.7049,
+    "best_cagr": 0.0371,
+    "best_max_drawdown": 0.061,
+    "best_trade_count": 11,
+    "best_params": {
+      "lookback_period": 63,
+      "entry_threshold": 0.03,
+      "exit_threshold": -0.05
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 17,
+    "overfitting_score": 1.0262,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "rsi_reversion",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": 0.1539,
+    "best_cagr": 0.0011,
+    "best_max_drawdown": 0.017,
+    "best_trade_count": 32,
+    "best_params": {
+      "rsi_period": 14,
+      "oversold": 25,
+      "overbought": 65
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 17,
+    "overfitting_score": 2.2269,
+    "valid_combos": 27
+  },
+  {
+    "strategy": "bb_reversion",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": 1.0112,
+    "best_cagr": 0.0817,
+    "best_max_drawdown": 0.0325,
+    "best_trade_count": 10,
+    "best_params": {
+      "period": 30,
+      "std_dev": 1.5
+    },
+    "gate1_pass": false,
+    "gate2_pass": false,
+    "wf_folds": 17,
+    "overfitting_score": 0.0766,
+    "valid_combos": 12
+  },
+  {
+    "strategy": "zscore_reversion",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": 0.1105,
+    "best_cagr": 0.0048,
+    "best_max_drawdown": 0.0513,
+    "best_trade_count": 25,
+    "best_params": {
+      "period": 20,
+      "entry_z": 1.5,
+      "exit_z": 0.25
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 17,
+    "overfitting_score": 12.086,
+    "valid_combos": 36
+  },
+  {
+    "strategy": "vwap_reversion",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": 0.1591,
+    "best_cagr": 0.007,
+    "best_max_drawdown": 0.0364,
+    "best_trade_count": 18,
+    "best_params": {
+      "vwap_period": 30,
+      "entry_z": 1.0,
+      "exit_z": 0.0
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 17,
+    "overfitting_score": 1.1617,
+    "valid_combos": 18
+  },
+  {
+    "strategy": "alpha_composite",
+    "symbol": "BTC/USDT",
+    "timeframe": "4h",
+    "best_sharpe": 1.1488,
+    "best_cagr": 0.0893,
+    "best_max_drawdown": 0.0339,
+    "best_trade_count": 35,
+    "best_params": {
+      "fast_ema": 13,
+      "slow_ema": 40,
+      "rsi_period": 10,
+      "rsi_oversold": 40.0,
+      "trend_weight": 0.45,
+      "rsi_weight": 0.3,
+      "entry_threshold": 0.55,
+      "vol_weight": 0.25
+    },
+    "gate1_pass": false,
+    "gate2_pass": true,
+    "wf_folds": 17,
+    "overfitting_score": 0.7606,
+    "valid_combos": 1458
+  }
+]
