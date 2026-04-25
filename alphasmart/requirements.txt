@@ -1,0 +1,41 @@
+# Core
+python-dotenv==1.0.1
+pyyaml==6.0.2
+pandas==2.2.3
+numpy==2.2.4
+
+# LLM (Phase 3)
+anthropic==0.49.0
+
+# Market Data
+yfinance==0.2.54
+ccxt==4.4.58
+requests==2.32.3
+
+# Technical Analysis
+ta==0.11.0
+pandas-ta==0.3.14b
+
+# Database
+sqlalchemy==2.0.40
+
+# Scheduling (Phase 5+)
+apscheduler==3.11.0
+
+# Backtesting (Phase 2)
+vectorbt==0.26.2
+
+# API Layer (Phase 4)
+fastapi==0.115.12
+uvicorn==0.34.0
+
+# Broker APIs (Phase 5)
+alpaca-trade-api==3.3.2
+
+# Monitoring
+loguru==0.7.3
+prometheus-client==0.21.1
+
+# Testing
+pytest==8.3.5
+pytest-cov==6.1.0
