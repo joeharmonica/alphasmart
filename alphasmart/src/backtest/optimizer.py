@@ -31,6 +31,31 @@ from src.strategy.zscore_reversion import ZScoreReversionStrategy
 from src.strategy.momentum_long import MomentumLongStrategy
 from src.strategy.vwap_reversion import VWAPReversionStrategy
 from src.strategy.alpha_composite import AlphaCompositeStrategy
+from src.strategy.cci_trend import CCITrendStrategy
+from src.strategy.stoch_rsi import StochRSIStrategy
+from src.strategy.williams_r import WilliamsRStrategy
+from src.strategy.squeeze_momentum import SqueezeMomentumStrategy
+from src.strategy.keltner_breakout import KeltnerBreakoutStrategy
+from src.strategy.hull_ma_crossover import HullMACrossoverStrategy
+from src.strategy.rsi_vwap import RSIVWAPStrategy
+from src.strategy.trailing_stop import TrailingStopStrategy
+
+# Strategies that get a `+stop` variant (ATR trailing stop wrapper).
+# Trend / momentum strategies benefit most; mean-reversion strategies have
+# natural exits at the mean but the stop is still a useful safety net.
+_STOP_WRAPPED = (
+    "cci_trend",
+    "hull_ma_crossover",
+    "keltner_breakout",
+    "rsi_vwap",
+    "ema_crossover",
+    "donchian_bo",
+    "macd_momentum",
+    "atr_breakout",
+    "momentum_long",
+    "triple_screen",
+    "alpha_composite",
+)
 
 # ---------------------------------------------------------------------------
 # Parameter grids — exhaustive but bounded
@@ -85,6 +110,46 @@ PARAM_GRIDS: dict[str, dict[str, list]] = {
         "entry_z":     [1.0, 1.5, 2.0],
         "exit_z":      [0.0, 0.25],
     },
+    # --- New strategies (2026-04-25) ---
+    "cci_trend": {
+        "entry_level":   [50.0, 75.0, 100.0, 125.0],
+        "exit_level":    [-50.0, 0.0, 50.0],
+        "vol_threshold": [0.8, 1.0, 1.2],
+    },
+    "stoch_rsi": {
+        "rsi_period": [10, 14],
+        "oversold":   [15.0, 20.0, 25.0],
+        "overbought": [75.0, 80.0],
+    },
+    "williams_r": {
+        "period":     [10, 14, 21],
+        "oversold":   [-85.0, -80.0, -75.0],
+        "overbought": [-30.0, -20.0],
+        "sma_period": [100, 200],
+    },
+    "squeeze_momentum": {
+        "bb_std":      [1.5, 2.0],
+        "kc_mult":     [1.0, 1.5, 2.0],
+        "mom_period":  [10, 15, 20],
+    },
+    # --- Session 5: 1H-optimised ---
+    "keltner_breakout": {
+        "period":       [15, 20, 30],
+        "atr_period":   [10, 14, 20],
+        "atr_mult":     [1.0, 1.5, 2.0, 2.5],
+        "trend_period": [50, 100, 200],
+    },
+    "hull_ma_crossover": {
+        "fast_period":  [13, 21, 34],
+        "slow_period":  [50, 89, 144],
+        "trend_period": [50, 100, 200],
+    },
+    "rsi_vwap": {
+        "vwap_period": [12, 24, 48],
+        "rsi_period":  [10, 14, 21],
+        "oversold":    [25.0, 30.0, 35.0, 40.0],
+        "overbought":  [60.0, 65.0, 70.0],
+    },
     # --- Proprietary (AlphaComposite) ---
     "alpha_composite": {
         "fast_ema":        [8, 10, 13],
@@ -109,8 +174,22 @@ STABILITY_AXES: dict[str, tuple[str, str]] = {
     "zscore_reversion":("period", "entry_z"),
     "momentum_long":   ("lookback_period", "entry_threshold"),
     "vwap_reversion":  ("vwap_period", "entry_z"),
-    "alpha_composite": ("trend_weight", "entry_threshold"),
+    "alpha_composite":  ("trend_weight", "entry_threshold"),
+    "cci_trend":          ("entry_level", "vol_threshold"),
+    "stoch_rsi":          ("oversold", "overbought"),
+    "williams_r":         ("period", "oversold"),
+    "squeeze_momentum":   ("bb_std", "kc_mult"),
+    "keltner_breakout":   ("atr_mult", "trend_period"),
+    "hull_ma_crossover":  ("fast_period", "slow_period"),
+    "rsi_vwap":           ("vwap_period", "oversold"),
 }
+
+# Auto-register +stop variants — same grid + stability axes as the inner.
+for _base in _STOP_WRAPPED:
+    if _base in PARAM_GRIDS:
+        PARAM_GRIDS[f"{_base}+stop"] = PARAM_GRIDS[_base]
+    if _base in STABILITY_AXES:
+        STABILITY_AXES[f"{_base}+stop"] = STABILITY_AXES[_base]
 
 # Walk-forward window sizes in bars — scaled per timeframe in run_optimization()
 _IS_YEARS  = 3    # 3 years in-sample
@@ -126,7 +205,16 @@ OptObjective = Literal["sharpe", "cagr", "max_drawdown", "profit_factor"]
 # ---------------------------------------------------------------------------
 
 def _make_strategy(strategy_key: str, symbol: str, params: dict):
-    """Instantiate a strategy with given params."""
+    """Instantiate a strategy with given params.
+
+    Keys ending in `+stop` build the inner strategy from the prefix and wrap
+    it in TrailingStopStrategy with default ATR(14) * 2.0 stop distance.
+    """
+    if strategy_key.endswith("+stop"):
+        base_key = strategy_key[: -len("+stop")]
+        inner = _make_strategy(base_key, symbol, params)
+        return TrailingStopStrategy(inner)
+
     cls_map = {
         "ema_crossover":    EMACrossoverStrategy,
         "rsi_reversion":    RSIMeanReversionStrategy,
@@ -139,6 +227,13 @@ def _make_strategy(strategy_key: str, symbol: str, params: dict):
         "momentum_long":    MomentumLongStrategy,
         "vwap_reversion":   VWAPReversionStrategy,
         "alpha_composite":  AlphaCompositeStrategy,
+        "cci_trend":          CCITrendStrategy,
+        "stoch_rsi":          StochRSIStrategy,
+        "williams_r":         WilliamsRStrategy,
+        "squeeze_momentum":   SqueezeMomentumStrategy,
+        "keltner_breakout":   KeltnerBreakoutStrategy,
+        "hull_ma_crossover":  HullMACrossoverStrategy,
+        "rsi_vwap":           RSIVWAPStrategy,
     }
     if strategy_key not in cls_map:
         raise ValueError(f"Unknown strategy: {strategy_key}")
@@ -207,25 +302,39 @@ def _run_one_on_data(
 
 
 def _generate_combos(strategy_key: str, custom_grid: dict | None = None) -> list[dict]:
-    """Return all valid parameter combinations for the strategy."""
+    """Return all valid parameter combinations for the strategy.
+
+    +stop variants delegate constraint checks to the inner strategy.
+    """
     grid = custom_grid if custom_grid else PARAM_GRIDS.get(strategy_key, {})
     if not grid:
         return []
+
+    # Strip +stop suffix so the constraint switch below behaves identically.
+    constraint_key = (
+        strategy_key[: -len("+stop")]
+        if strategy_key.endswith("+stop")
+        else strategy_key
+    )
 
     combos = []
     for values in itertools.product(*grid.values()):
         params = dict(zip(grid.keys(), values))
         # Strategy-specific hard constraints
-        if strategy_key == "ema_crossover" and params.get("fast_period", 0) >= params.get("slow_period", 0):
+        if constraint_key == "ema_crossover" and params.get("fast_period", 0) >= params.get("slow_period", 0):
             continue
-        if strategy_key == "rsi_reversion" and params.get("oversold", 0) >= params.get("overbought", 0):
+        if constraint_key == "rsi_reversion" and params.get("oversold", 0) >= params.get("overbought", 0):
             continue
-        if strategy_key == "macd_momentum" and params.get("fast_period", 0) >= params.get("slow_period", 0):
+        if constraint_key == "macd_momentum" and params.get("fast_period", 0) >= params.get("slow_period", 0):
             continue
-        if strategy_key == "triple_screen" and params.get("oversold_level", 0) >= params.get("overbought_level", 0):
+        if constraint_key == "triple_screen" and params.get("oversold_level", 0) >= params.get("overbought_level", 0):
+            continue
+        if constraint_key == "hull_ma_crossover" and params.get("fast_period", 0) >= params.get("slow_period", 0):
+            continue
+        if constraint_key == "rsi_vwap" and params.get("oversold", 0) >= params.get("overbought", 0):
             continue
         # AlphaComposite: weights must sum to ~1 (third weight is computed as remainder)
-        if strategy_key == "alpha_composite":
+        if constraint_key == "alpha_composite":
             tw = params.get("trend_weight", 0)
             rw = params.get("rsi_weight", 0)
             vw = round(1.0 - tw - rw, 4)

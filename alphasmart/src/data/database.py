@@ -9,6 +9,7 @@ from typing import Optional
 
 import pandas as pd
 from sqlalchemy import (
+    Boolean,
     Column,
     DateTime,
     Float,
@@ -51,6 +52,38 @@ class OHLCVRecord(Base):
 
     def __repr__(self) -> str:
         return f"<OHLCV {self.symbol} {self.timeframe} {self.timestamp} close={self.close}>"
+
+
+class BacktestCacheRecord(Base):
+    """One row = one run_all() result for a strategy × symbol × timeframe combo."""
+
+    __tablename__ = "backtest_cache"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    strategy = Column(String(64), nullable=False)
+    symbol = Column(String(32), nullable=False)
+    timeframe = Column(String(8), nullable=False)
+    run_at = Column(DateTime, nullable=False)
+
+    # Core metrics
+    total_return = Column(Float, nullable=True)
+    cagr = Column(Float, nullable=True)
+    sharpe = Column(Float, nullable=True)
+    max_drawdown = Column(Float, nullable=True)
+    win_rate = Column(Float, nullable=True)
+    trade_count = Column(Integer, nullable=True)
+    profit_factor = Column(Float, nullable=True)
+    score = Column(Float, nullable=True)
+    rank = Column(Integer, nullable=True)
+
+    # Flags
+    gate1_pass = Column(Boolean, nullable=True)
+    halted = Column(Boolean, nullable=True)
+    is_optimized = Column(Boolean, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("strategy", "symbol", "timeframe", name="uq_cache_run"),
+    )
 
 
 class FetchMetadata(Base):
@@ -215,6 +248,80 @@ class Database:
                 "timeframe": r.timeframe,
                 "last_fetched_at": r.last_fetched_at,
                 "record_count": r.record_count,
+            }
+            for r in rows
+        ]
+
+    # ------------------------------------------------------------------
+    # Backtest cache
+    # ------------------------------------------------------------------
+
+    def upsert_cache_results(self, records: list[dict]) -> int:
+        """Upsert a list of run_all() result dicts into backtest_cache. Returns count upserted."""
+        if not records:
+            return 0
+        now = datetime.now(timezone.utc)
+        upserted = 0
+        with self.session() as sess:
+            for rec in records:
+                existing = sess.execute(
+                    select(BacktestCacheRecord).where(
+                        BacktestCacheRecord.strategy == rec.get("strategy", ""),
+                        BacktestCacheRecord.symbol == rec.get("symbol", ""),
+                        BacktestCacheRecord.timeframe == rec.get("timeframe", "1d"),
+                    )
+                ).scalar_one_or_none()
+
+                if existing is None:
+                    existing = BacktestCacheRecord(
+                        strategy=rec.get("strategy", ""),
+                        symbol=rec.get("symbol", ""),
+                        timeframe=rec.get("timeframe", "1d"),
+                    )
+                    sess.add(existing)
+
+                existing.run_at = now
+                existing.total_return = rec.get("total_return")
+                existing.cagr = rec.get("cagr")
+                existing.sharpe = rec.get("sharpe")
+                existing.max_drawdown = rec.get("max_drawdown")
+                existing.win_rate = rec.get("win_rate")
+                existing.trade_count = rec.get("trade_count")
+                existing.profit_factor = rec.get("profit_factor")
+                existing.score = rec.get("score")
+                existing.rank = rec.get("rank")
+                existing.gate1_pass = bool(rec.get("gate1_pass", False))
+                existing.halted = bool(rec.get("halted", False))
+                existing.is_optimized = bool(rec.get("is_optimized", False))
+                upserted += 1
+
+            sess.commit()
+        return upserted
+
+    def query_cache_results(self) -> list[dict]:
+        """Return all cached backtest results, sorted by score descending."""
+        with self.session() as sess:
+            rows = sess.execute(
+                select(BacktestCacheRecord).order_by(BacktestCacheRecord.score.desc().nulls_last())
+            ).scalars().all()
+        return [
+            {
+                "strategy": r.strategy,
+                "symbol": r.symbol,
+                "timeframe": r.timeframe,
+                "run_at": r.run_at.isoformat() if r.run_at else None,
+                "total_return": r.total_return,
+                "cagr": r.cagr,
+                "sharpe": r.sharpe,
+                "max_drawdown": r.max_drawdown,
+                "win_rate": r.win_rate,
+                "trade_count": r.trade_count,
+                "profit_factor": r.profit_factor,
+                "score": r.score,
+                "rank": r.rank,
+                "gate1_pass": r.gate1_pass,
+                "halted": r.halted,
+                "is_optimized": r.is_optimized,
             }
             for r in rows
         ]

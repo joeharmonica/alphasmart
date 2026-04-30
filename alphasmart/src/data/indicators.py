@@ -202,6 +202,90 @@ def add_vwap(df: pd.DataFrame) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# CCI — Commodity Channel Index
+# ---------------------------------------------------------------------------
+
+def cci(df: pd.DataFrame, period: int = 20) -> pd.Series:
+    """
+    Commodity Channel Index.
+    CCI = (Typical Price - SMA(TP, n)) / (0.015 * MAD(TP, n))
+    MAD = mean absolute deviation (more outlier-robust than std dev).
+    Typical range: ±100 is neutral. >+100 = strong uptrend. <-100 = strong downtrend.
+    """
+    tp = (df["high"] + df["low"] + df["close"]) / 3
+    sma_tp = tp.rolling(period).mean()
+    mad = tp.rolling(period).apply(lambda x: np.mean(np.abs(x - x.mean())), raw=True)
+    return (tp - sma_tp) / (0.015 * mad.replace(0, float("nan")))
+
+
+# ---------------------------------------------------------------------------
+# Williams %R
+# ---------------------------------------------------------------------------
+
+def williams_r(df: pd.DataFrame, period: int = 14) -> pd.Series:
+    """
+    Williams %R.
+    %R = -100 * (Highest High(n) - Close) / (Highest High(n) - Lowest Low(n))
+    Range: 0 to -100. Oversold: < -80. Overbought: > -20.
+    """
+    highest_high = df["high"].rolling(period).max()
+    lowest_low = df["low"].rolling(period).min()
+    denom = (highest_high - lowest_low).replace(0, float("nan"))
+    return -100.0 * (highest_high - df["close"]) / denom
+
+
+# ---------------------------------------------------------------------------
+# Stochastic RSI
+# ---------------------------------------------------------------------------
+
+def stoch_rsi(
+    df: pd.DataFrame,
+    rsi_period: int = 14,
+    stoch_period: int = 14,
+    smooth_k: int = 3,
+    smooth_d: int = 3,
+) -> pd.DataFrame:
+    """
+    Stochastic RSI.
+    Applies the Stochastic formula to RSI values instead of price.
+    Returns DataFrame with columns: stochrsi_k, stochrsi_d (both 0–100).
+    More sensitive than plain RSI; useful for detecting momentum exhaustion.
+    """
+    rsi_vals = rsi(df, period=rsi_period)
+    rsi_min = rsi_vals.rolling(stoch_period).min()
+    rsi_max = rsi_vals.rolling(stoch_period).max()
+    denom = (rsi_max - rsi_min).replace(0, float("nan"))
+    raw_k = 100.0 * (rsi_vals - rsi_min) / denom
+    k = raw_k.rolling(smooth_k).mean()
+    d = k.rolling(smooth_d).mean()
+    return pd.DataFrame({"stochrsi_k": k, "stochrsi_d": d}, index=df.index)
+
+
+# ---------------------------------------------------------------------------
+# Keltner Channel
+# ---------------------------------------------------------------------------
+
+def keltner_channel(
+    df: pd.DataFrame,
+    period: int = 20,
+    atr_period: int = 14,
+    atr_mult: float = 1.5,
+) -> pd.DataFrame:
+    """
+    Keltner Channel.
+    Mid = EMA(close, period). Bands = Mid ± atr_mult * ATR(atr_period).
+    Returns DataFrame with columns: kc_upper, kc_mid, kc_lower.
+    """
+    mid = df["close"].ewm(span=period, adjust=False).mean()
+    atr_vals = atr(df, period=atr_period)
+    return pd.DataFrame({
+        "kc_upper": mid + atr_mult * atr_vals,
+        "kc_mid":   mid,
+        "kc_lower": mid - atr_mult * atr_vals,
+    }, index=df.index)
+
+
+# ---------------------------------------------------------------------------
 # Convenience: add all indicators at once
 # ---------------------------------------------------------------------------
 

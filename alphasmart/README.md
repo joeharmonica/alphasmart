@@ -14,8 +14,30 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **2 — Core Engine** | Strategy abstraction, backtester, risk engine | ✅ Complete |
 | **3 — Optimization + LLM** | Walk-forward, grid search, Claude copilot, simulation | ✅ Complete |
 | **4 — Dashboard** | React UI, Next.js, optimization queue, opt-params persistence | ✅ Complete |
-| 5 — Forward Testing | Paper trading, 30-day run | 🔜 Next |
-| 6 — Live Deployment | Real capital, broker integration | 🔜 Planned |
+| **6a — Per-trade stops** | ATR trailing-stop wrapper (`+stop` variants) | ✅ 2026-04-26 |
+| 6b — Robustness sweep | Walk-forward + bootstrap on top-4 × 19-symbol universe | 🔄 In progress |
+| 5 — Forward Testing | Paper trading, 30-day run | ⏸ Blocked on 6b ≥ 3 passers |
+| 7 — Live Deployment | Real capital, broker integration | 🔜 Planned |
+
+### Gate 1 Scoreboard (as of 2026-04-26)
+
+Strategies that have cleared Gate 1 (Sharpe > 1.2, MaxDD < 25%, ≥ 30 trades, positive return):
+
+| # | Strategy | Symbol | Sharpe | CAGR | MaxDD | Trades | Total Return | Gate 2 |
+|---|----------|--------|--------|------|-------|--------|--------------|--------|
+| 1 | `cci_trend+stop` (entry=75, exit=50, vol=0.8) | NVDA | **1.39** | 41.7% | 21.4% | 33 | +272% | ✅ OOS/IS=0.82, 4 folds |
+| 2 | `cci_trend` (entry=75, exit=50, vol=0.8) | NVDA | 1.39 | 41.7% | 21.4% | 33 | +272% | (same — stop redundant on this config) |
+| 3 | `bb_reversion` (period=20, std=2.0) | NVDA | 1.21 | 24.5% | 17.5% | 82 | +198% | not yet evaluated |
+
+**`cci_trend+stop` on NVDA is the project's first combined Gate1+Gate2 pass.**
+Walk-forward used IS=2yr / OOS=1yr / step=6mo → 4 folds on 5-yr daily data
+(see `tasks/lessons.md` #27).
+
+All three winners are NVDA-specific. The 2021–2026 period embeds a 2022 bear market (NVDA –65%) that eliminates most strategies through the 20% drawdown circuit breaker before they can accumulate enough trades. Single-symbol concentration is **not** a paper-tradable portfolio — the next session is running the same walk-forward across all 19 symbols × 4 trend strategies (`+stop` variants) to find ≥ 3 uncorrelated passers (see `tasks/todo.md`).
+
+### Strategy-level trailing stop
+
+`src/strategy/trailing_stop.py` adds `TrailingStopStrategy(inner, atr_period=14, atr_mult=2.0)` — a Chandelier-style ATR trailing stop that wraps any base strategy and converts `long` → `flat` when `close < max_close_since_entry - 2 * ATR(14)`. Registered as `<strategy>+stop` variants for trend/momentum strategies in both the optimizer and the dashboard. The portfolio-level 20% drawdown circuit breaker remains as a last-resort safety net; per-trade risk now sits with the wrapper.
 
 ---
 

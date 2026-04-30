@@ -29,7 +29,7 @@ from fastapi.concurrency import run_in_threadpool
 
 import json as _json
 
-from src.data.database import Database
+from src.data.database import Database, BacktestCacheRecord
 from src.backtest.engine import BacktestConfig, BacktestEngine
 from src.backtest.runner import BatchRunner
 from src.strategy.risk_manager import RiskConfig
@@ -44,6 +44,14 @@ from src.strategy.zscore_reversion import ZScoreReversionStrategy
 from src.strategy.momentum_long import MomentumLongStrategy
 from src.strategy.vwap_reversion import VWAPReversionStrategy
 from src.strategy.alpha_composite import AlphaCompositeStrategy
+from src.strategy.cci_trend import CCITrendStrategy
+from src.strategy.williams_r import WilliamsRStrategy
+from src.strategy.stoch_rsi import StochRSIStrategy
+from src.strategy.squeeze_momentum import SqueezeMomentumStrategy
+from src.strategy.keltner_breakout import KeltnerBreakoutStrategy
+from src.strategy.hull_ma_crossover import HullMACrossoverStrategy
+from src.strategy.rsi_vwap import RSIVWAPStrategy
+from src.strategy.trailing_stop import TrailingStopStrategy
 
 # ---------------------------------------------------------------------------
 # Config
@@ -107,9 +115,42 @@ STRATEGY_MAP = {
     # --- New mean reversion ---
     "zscore_reversion": lambda sym: ZScoreReversionStrategy(sym),
     "vwap_reversion":   lambda sym: VWAPReversionStrategy(sym),
+    # --- Session 4 oscillator/momentum ---
+    "cci_trend":          lambda sym: CCITrendStrategy(sym),
+    "williams_r":         lambda sym: WilliamsRStrategy(sym),
+    "stoch_rsi":          lambda sym: StochRSIStrategy(sym),
+    "squeeze_momentum":   lambda sym: SqueezeMomentumStrategy(sym),
+    # --- Session 5: 1H-optimised ---
+    "keltner_breakout":   lambda sym: KeltnerBreakoutStrategy(sym),
+    "hull_ma_crossover":  lambda sym: HullMACrossoverStrategy(sym),
+    "rsi_vwap":           lambda sym: RSIVWAPStrategy(sym),
     # --- Proprietary ---
-    "alpha_composite":  lambda sym: AlphaCompositeStrategy(sym),
+    "alpha_composite":    lambda sym: AlphaCompositeStrategy(sym),
 }
+
+# --- ATR trailing-stop variants (Chandelier-style: stop = max_close - 2 * ATR(14)) ---
+_STOP_BASES = (
+    "cci_trend",
+    "hull_ma_crossover",
+    "keltner_breakout",
+    "rsi_vwap",
+    "ema_crossover",
+    "donchian_bo",
+    "macd_momentum",
+    "atr_breakout",
+    "momentum_long",
+    "triple_screen",
+    "alpha_composite",
+)
+
+
+def _make_stop_factory(base_key: str):
+    base_factory = STRATEGY_MAP[base_key]
+    return lambda sym: TrailingStopStrategy(base_factory(sym))
+
+
+for _base in _STOP_BASES:
+    STRATEGY_MAP[f"{_base}+stop"] = _make_stop_factory(_base)
 
 STRATEGY_LABELS = {
     # --- Original 5 ---
@@ -125,9 +166,21 @@ STRATEGY_LABELS = {
     # --- New mean reversion ---
     "zscore_reversion": "Z-Score Reversion",
     "vwap_reversion":   "VWAP Reversion",
+    # --- Session 4 oscillator/momentum ---
+    "cci_trend":          "CCI Trend",
+    "williams_r":         "Williams %R",
+    "stoch_rsi":          "Stochastic RSI",
+    "squeeze_momentum":   "Squeeze Momentum",
+    # --- Session 5: 1H-optimised ---
+    "keltner_breakout":   "Keltner Breakout",
+    "hull_ma_crossover":  "Hull MA Crossover",
+    "rsi_vwap":           "RSI + VWAP",
     # --- Proprietary ---
-    "alpha_composite":  "Alpha Composite ✦",
+    "alpha_composite":    "Alpha Composite ✦",
 }
+
+for _base in _STOP_BASES:
+    STRATEGY_LABELS[f"{_base}+stop"] = f"{STRATEGY_LABELS[_base]} +Stop"
 
 # ---------------------------------------------------------------------------
 # App
@@ -229,6 +282,33 @@ async def run_summary():
     """
     result = await run_in_threadpool(_run_summary_sync)
     return result
+
+
+@app.get("/api/cached-results")
+async def cached_results():
+    """
+    Return the most recent run_all() results from the local cache.
+    Populated automatically after each /api/summary call.
+    Returns empty results list if no cache exists yet.
+    """
+    db = Database(DB_URL)
+    rows = db.query_cache_results()
+    if not rows:
+        return {"results": [], "cached": False, "total_runs": 0, "gate1_passes": 0}
+
+    # Add strategy_label for frontend display
+    for r in rows:
+        r["strategy_label"] = STRATEGY_LABELS.get(r["strategy"], r["strategy"])
+
+    gate1 = sum(1 for r in rows if r.get("gate1_pass"))
+    run_at = rows[0].get("run_at") if rows else None
+    return {
+        "results": rows,
+        "cached": True,
+        "total_runs": len(rows),
+        "gate1_passes": gate1,
+        "cached_at": run_at,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -429,6 +509,13 @@ def _run_summary_sync() -> dict:
     df["is_optimized"] = df["is_optimized"].astype(bool)
 
     records = df.to_dict(orient="records")
+
+    # Persist to cache so future requests can skip the full run
+    try:
+        db.upsert_cache_results(records)
+    except Exception as _exc:
+        logger.warning(f"Cache upsert failed (non-fatal): {_exc}")
+
     return {
         "results": records,
         "total_runs": len(records),

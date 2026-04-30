@@ -99,6 +99,23 @@ def main() -> None:
         result = _run_summary_sync()
         _out(result)
 
+    elif mode == "cached-results":
+        db = Database(f"sqlite:///{ROOT / 'alphasmart_dev.db'}")
+        rows = db.query_cache_results()
+        if not rows:
+            _out({"results": [], "cached": False, "total_runs": 0, "gate1_passes": 0})
+        else:
+            for r in rows:
+                r["strategy_label"] = STRATEGY_LABELS.get(r["strategy"], r["strategy"])
+            gate1 = sum(1 for r in rows if r.get("gate1_pass"))
+            _out({
+                "results": rows,
+                "cached": True,
+                "total_runs": len(rows),
+                "gate1_passes": gate1,
+                "cached_at": rows[0].get("run_at") if rows else None,
+            })
+
     elif mode == "optimize":
         if len(args) < 3:
             _err("Usage: run_backtest.py optimize <strategy> <symbol> [timeframe] [objective]")

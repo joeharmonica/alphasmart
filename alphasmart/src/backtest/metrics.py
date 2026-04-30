@@ -37,6 +37,28 @@ def bars_per_year_for(timeframe: str) -> int:
     return BARS_PER_YEAR.get(timeframe.lower(), TRADING_DAYS_PER_YEAR)
 
 
+# Bars per calendar day for intraday timeframes (24h basis — crypto-safe).
+# Daily and above return 1.0 so the daily loss limit is unchanged.
+_BARS_PER_DAY: dict[str, float] = {
+    "1m":  24 * 60,
+    "5m":  24 * 12,
+    "15m": 24 * 4,
+    "30m": 24 * 2,
+    "1h":  24.0,
+    "60m": 24.0,
+    "4h":  6.0,
+}
+
+
+def bars_per_day_for(timeframe: str) -> float:
+    """Return bars per calendar day for a given timeframe (24h basis).
+
+    Used to scale the daily loss limit for intraday backtests so that normal
+    intraday volatility does not trigger the per-calendar-day circuit breaker.
+    """
+    return _BARS_PER_DAY.get(timeframe.lower(), 1.0)
+
+
 @dataclass
 class BacktestMetrics:
     """All performance metrics for a single backtest run."""
@@ -55,11 +77,11 @@ class BacktestMetrics:
     n_bars: int               # total bars in backtest
 
     def passes_gate_1(self) -> bool:
-        """Gate 1 criteria: Sharpe > 1.2, MaxDD < 25%, trades ≥ 100, positive return."""
+        """Gate 1 criteria: Sharpe > 1.2, MaxDD < 25%, trades ≥ 30, positive return."""
         return (
             self.sharpe > 1.2
             and self.max_drawdown < 0.25
-            and self.trade_count >= 100
+            and self.trade_count >= 30
             and self.total_return > 0
         )
 

@@ -224,7 +224,7 @@ interface TutorialStep {
 const TUTORIAL_STEPS: TutorialStep[] = [
   {
     title: "Welcome to AlphaSMART",
-    body: "Your institutional-grade backtest platform. 11 strategies, 4 timeframes, walk-forward optimization, bootstrapping simulation, and an LLM copilot — all running on real historical data stored locally. Let's walk through each view.",
+    body: "Your institutional-grade backtest platform. 15 strategies, 4 timeframes, walk-forward optimization, bootstrapping simulation, and an LLM copilot — all running on real historical data stored locally. Let's walk through each view.",
     target: "",
     position: "center",
     icon: "🎯",
@@ -270,7 +270,7 @@ const TUTORIAL_STEPS: TutorialStep[] = [
   },
   {
     title: "All Results — Strategy Rankings",
-    body: "Runs all 11 strategies × every symbol in your database and ranks them by composite score: Sharpe × 40% + CAGR × 30% + Drawdown resilience × 20% + Win rate × 10%. Click any row to drill into that run in the Explorer.",
+    body: "Runs all 15 strategies × every symbol in your database and ranks them by composite score: Sharpe × 40% + CAGR × 30% + Drawdown resilience × 20% + Win rate × 10%. Click any row to drill into that run in the Explorer.",
     target: "[data-tour='all-results-btn']",
     position: "right",
     icon: "📊",
@@ -1991,7 +1991,7 @@ export default function Home() {
                   All Backtest Results
                 </h2>
                 <p className="text-xs font-mono text-[#83958a] mt-1">
-                  All 11 strategies × every symbol in your database, ranked by composite score
+                  All 15 strategies × every symbol in your database, ranked by composite score
                 </p>
               </div>
               <button
@@ -2020,7 +2020,7 @@ export default function Home() {
                       Running all strategy combinations…
                     </p>
                     <p className="text-xs font-mono text-[#83958a] mt-1">
-                      11 strategies × {uniqueSymbols.length || "?"} symbols. This takes 30–120 seconds depending on data volume.
+                      15 strategies × {uniqueSymbols.length || "?"} symbols. This takes 30–120 seconds depending on data volume.
                     </p>
                   </div>
                 </div>

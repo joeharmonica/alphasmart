@@ -17,6 +17,7 @@ Bar processing order per step:
 """
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
@@ -26,7 +27,7 @@ import pandas as pd
 from src.strategy.base import Fill, Order, Strategy
 from src.strategy.portfolio import Portfolio
 from src.strategy.risk_manager import RiskConfig, RiskEngine
-from src.backtest.metrics import BacktestMetrics, bars_per_year_for, compute_metrics
+from src.backtest.metrics import BacktestMetrics, bars_per_day_for, bars_per_year_for, compute_metrics
 from src.monitoring.logger import logger
 
 
@@ -102,7 +103,19 @@ class BacktestEngine:
             raise ValueError(f"Data missing required columns: {missing}")
 
         portfolio = Portfolio(config.initial_capital)
-        risk = RiskEngine(config.risk_config)
+
+        # Scale the daily loss limit for intraday timeframes so that normal
+        # single-bar volatility (e.g. a 3-6% 4h BTC candle) doesn't trip the
+        # circuit breaker that was calibrated for daily equity bars.
+        bpd = bars_per_day_for(config.timeframe)
+        effective_rc = (
+            dataclasses.replace(
+                config.risk_config,
+                max_daily_loss_pct=config.risk_config.max_daily_loss_pct * bpd,
+            )
+            if bpd > 1.0 else config.risk_config
+        )
+        risk = RiskEngine(effective_rc)
 
         pending_order: Optional[Order] = None
         halted = False

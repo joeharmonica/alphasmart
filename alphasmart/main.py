@@ -41,6 +41,10 @@ from src.strategy.mean_reversion import RSIMeanReversionStrategy
 from src.strategy.breakout import DonchianBreakoutStrategy
 from src.strategy.macd_momentum import MACDMomentumStrategy
 from src.strategy.bollinger_reversion import BollingerReversionStrategy
+from src.strategy.cci_trend import CCITrendStrategy
+from src.strategy.williams_r import WilliamsRStrategy
+from src.strategy.stoch_rsi import StochRSIStrategy
+from src.strategy.squeeze_momentum import SqueezeMomentumStrategy
 from src.reporting.report import generate_report
 
 
@@ -144,11 +148,15 @@ def cmd_backtest_all(args: argparse.Namespace) -> None:
     cryptos = [s for s in symbols if "/" in s]
 
     strategy_factories = {
-        "ema_crossover":  lambda sym: EMACrossoverStrategy(sym),
-        "rsi_reversion":  lambda sym: RSIMeanReversionStrategy(sym),
-        "donchian_bo":    lambda sym: DonchianBreakoutStrategy(sym),
-        "macd_momentum":  lambda sym: MACDMomentumStrategy(sym),
-        "bb_reversion":   lambda sym: BollingerReversionStrategy(sym),
+        "ema_crossover":       lambda sym: EMACrossoverStrategy(sym),
+        "rsi_reversion":       lambda sym: RSIMeanReversionStrategy(sym),
+        "donchian_bo":         lambda sym: DonchianBreakoutStrategy(sym),
+        "macd_momentum":       lambda sym: MACDMomentumStrategy(sym),
+        "bb_reversion":        lambda sym: BollingerReversionStrategy(sym),
+        "cci_trend":           lambda sym: CCITrendStrategy(sym),
+        "williams_r":          lambda sym: WilliamsRStrategy(sym),
+        "stoch_rsi":           lambda sym: StochRSIStrategy(sym),
+        "squeeze_momentum":    lambda sym: SqueezeMomentumStrategy(sym),
     }
 
     runner = BatchRunner(

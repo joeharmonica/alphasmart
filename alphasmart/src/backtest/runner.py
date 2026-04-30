@@ -136,6 +136,7 @@ class BatchRunner:
                             # Strategies use allocation_pct (0.95) to control
                             # position size; the 5% risk limit is for live trading.
                             risk_config=RiskConfig(max_position_pct=1.0),
+                            timeframe=tf,
                         )
                         result = self._engine.run(strategy, data, config)
                         m = result.metrics

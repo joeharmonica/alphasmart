@@ -1,0 +1,274 @@
+[
+  {
+    "symbol": "AAPL",
+    "sharpe": 0.994,
+    "cagr": 0.113,
+    "max_drawdown": 0.126,
+    "trade_count": 14,
+    "total_return": 0.708,
+    "gate1": false,
+    "gate2": true,
+    "halted": false,
+    "params": {
+      "entry_level": 100.0,
+      "exit_level": -50.0,
+      "vol_threshold": 1.2
+    }
+  },
+  {
+    "symbol": "MSFT",
+    "sharpe": 0.798,
+    "cagr": 0.066,
+    "max_drawdown": 0.134,
+    "trade_count": 13,
+    "total_return": 0.372,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 125.0,
+      "exit_level": 0.0,
+      "vol_threshold": 1.2
+    }
+  },
+  {
+    "symbol": "META",
+    "sharpe": 0.993,
+    "cagr": 0.185,
+    "max_drawdown": 0.133,
+    "trade_count": 15,
+    "total_return": 1.331,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 100.0,
+      "exit_level": -50.0,
+      "vol_threshold": 1.2
+    }
+  },
+  {
+    "symbol": "NVDA",
+    "sharpe": 1.388,
+    "cagr": 0.417,
+    "max_drawdown": 0.214,
+    "trade_count": 33,
+    "total_return": 2.722,
+    "gate1": true,
+    "gate2": false,
+    "halted": true,
+    "params": {
+      "entry_level": 75.0,
+      "exit_level": 50.0,
+      "vol_threshold": 0.8
+    }
+  },
+  {
+    "symbol": "TSLA",
+    "sharpe": 1.382,
+    "cagr": 0.469,
+    "max_drawdown": 0.206,
+    "trade_count": 4,
+    "total_return": 0.34,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 50.0,
+      "exit_level": -50.0,
+      "vol_threshold": 0.8
+    }
+  },
+  {
+    "symbol": "AMZN",
+    "sharpe": 0.621,
+    "cagr": 0.083,
+    "max_drawdown": 0.197,
+    "trade_count": 13,
+    "total_return": 0.489,
+    "gate1": false,
+    "gate2": true,
+    "halted": false,
+    "params": {
+      "entry_level": 50.0,
+      "exit_level": -50.0,
+      "vol_threshold": 1.2
+    }
+  },
+  {
+    "symbol": "GOOG",
+    "sharpe": 0.308,
+    "cagr": 0.025,
+    "max_drawdown": 0.173,
+    "trade_count": 23,
+    "total_return": 0.134,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 75.0,
+      "exit_level": 50.0,
+      "vol_threshold": 1.2
+    }
+  },
+  {
+    "symbol": "SPY",
+    "sharpe": 0.884,
+    "cagr": 0.047,
+    "max_drawdown": 0.059,
+    "trade_count": 11,
+    "total_return": 0.259,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 125.0,
+      "exit_level": -50.0,
+      "vol_threshold": 1.0
+    }
+  },
+  {
+    "symbol": "QQQ",
+    "sharpe": 0.92,
+    "cagr": 0.074,
+    "max_drawdown": 0.066,
+    "trade_count": 17,
+    "total_return": 0.428,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 100.0,
+      "exit_level": -50.0,
+      "vol_threshold": 1.0
+    }
+  },
+  {
+    "symbol": "V",
+    "sharpe": 0.025,
+    "cagr": -0.001,
+    "max_drawdown": 0.139,
+    "trade_count": 15,
+    "total_return": -0.004,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 50.0,
+      "exit_level": 0.0,
+      "vol_threshold": 1.2
+    }
+  },
+  {
+    "symbol": "MA",
+    "sharpe": -0.109,
+    "cagr": -0.013,
+    "max_drawdown": 0.177,
+    "trade_count": 24,
+    "total_return": -0.064,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 50.0,
+      "exit_level": 0.0,
+      "vol_threshold": 1.0
+    }
+  },
+  {
+    "symbol": "NVO",
+    "sharpe": 0.534,
+    "cagr": 0.07,
+    "max_drawdown": 0.23,
+    "trade_count": 10,
+    "total_return": 0.289,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 100.0,
+      "exit_level": -50.0,
+      "vol_threshold": 1.2
+    }
+  },
+  {
+    "symbol": "PLTR",
+    "sharpe": 0.297,
+    "cagr": 0.045,
+    "max_drawdown": 0.21,
+    "trade_count": 4,
+    "total_return": 0.04,
+    "gate1": false,
+    "gate2": true,
+    "halted": false,
+    "params": {
+      "entry_level": 75.0,
+      "exit_level": 0.0,
+      "vol_threshold": 0.8
+    }
+  },
+  {
+    "symbol": "CRWD",
+    "sharpe": -0.311,
+    "cagr": -0.086,
+    "max_drawdown": 0.208,
+    "trade_count": 4,
+    "total_return": -0.081,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 50.0,
+      "exit_level": -50.0,
+      "vol_threshold": 1.2
+    }
+  },
+  {
+    "symbol": "AVGO",
+    "sharpe": 0.789,
+    "cagr": 0.153,
+    "max_drawdown": 0.12,
+    "trade_count": 17,
+    "total_return": 1.031,
+    "gate1": false,
+    "gate2": true,
+    "halted": false,
+    "params": {
+      "entry_level": 125.0,
+      "exit_level": 0.0,
+      "vol_threshold": 1.2
+    }
+  },
+  {
+    "symbol": "NOW",
+    "sharpe": 0.502,
+    "cagr": 0.063,
+    "max_drawdown": 0.199,
+    "trade_count": 13,
+    "total_return": 0.357,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 125.0,
+      "exit_level": -50.0,
+      "vol_threshold": 1.2
+    }
+  },
+  {
+    "symbol": "ASML",
+    "sharpe": 1.016,
+    "cagr": 0.165,
+    "max_drawdown": 0.19,
+    "trade_count": 12,
+    "total_return": 1.143,
+    "gate1": false,
+    "gate2": false,
+    "halted": false,
+    "params": {
+      "entry_level": 50.0,
+      "exit_level": 0.0,
+      "vol_threshold": 1.2
+    }
+  }
+]
