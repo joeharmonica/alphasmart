@@ -11,14 +11,19 @@ Outputs:
       original_sharpe, sim_sharpe percentiles, ratio, verdict.
 
 Usage:
-  python run_bootstrap_passers.py                        # latest passers JSON
+  python run_bootstrap_passers.py                        # latest passers JSON, parallel
   python run_bootstrap_passers.py path/to/passers.json   # explicit input
+  python run_bootstrap_passers.py --workers 4            # cap pool size
+  python run_bootstrap_passers.py --serial               # disable multiprocessing
 """
 from __future__ import annotations
 
+import argparse
 import json
+import os
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -124,9 +129,48 @@ def _bootstrap_one(passer: dict) -> dict:
     }
 
 
+def _safe_bootstrap(passer: dict) -> dict:
+    """Pool-friendly wrapper: convert exceptions to ERROR records."""
+    try:
+        return _bootstrap_one(passer)
+    except Exception as exc:
+        return {
+            "strategy": passer["strategy"],
+            "symbol": passer["symbol"],
+            "timeframe": passer.get("timeframe", "1d"),
+            "error": f"{type(exc).__name__}: {exc}",
+            "verdict": "ERROR",
+        }
+
+
+def _print_record(idx: int, total: int, rec: dict) -> None:
+    tag = f"{rec['strategy']}::{rec['symbol']}::{rec.get('timeframe', '1d')}"
+    if rec.get("verdict") == "ERROR":
+        print(f"[{idx}/{total}] {tag}  ERROR: {rec.get('error')}", flush=True)
+    else:
+        print(
+            f"[{idx}/{total}] {tag}  "
+            f"orig={rec['original_sharpe']:.3f}  "
+            f"sim p25/p50/p75={rec['sim_sharpe_p25']:.3f}/"
+            f"{rec['sim_sharpe_median']:.3f}/{rec['sim_sharpe_p75']:.3f}  "
+            f"ratio={rec['ratio_median_to_original']:.2f}  "
+            f"[{rec['verdict']}]  ({rec['elapsed_s']}s)",
+            flush=True,
+        )
+
+
 def main(argv: list[str]) -> int:
-    if len(argv) >= 2:
-        passers_path = Path(argv[1])
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("passers_json", nargs="?", default=None,
+                    help="Path to passers JSON (default: latest in reports/)")
+    ap.add_argument("--workers", type=int, default=None,
+                    help="Pool size (default: min(passers, cpu_count() - 1))")
+    ap.add_argument("--serial", action="store_true",
+                    help="Disable multiprocessing — useful for debugging")
+    args = ap.parse_args(argv[1:])
+
+    if args.passers_json:
+        passers_path = Path(args.passers_json)
     else:
         latest = _latest_passers_json()
         if latest is None:
@@ -144,37 +188,40 @@ def main(argv: list[str]) -> int:
         print(f"No passers in {passers_path} — nothing to bootstrap.")
         return 0
 
+    if args.serial or len(passers) == 1:
+        n_workers = 1
+    elif args.workers:
+        n_workers = max(1, min(args.workers, len(passers)))
+    else:
+        cpu = os.cpu_count() or 2
+        n_workers = max(1, min(len(passers), cpu - 1))
+
     print(f"Loaded {len(passers)} passers from {passers_path}")
     print(f"Block-bootstrap: n={N_SIMULATIONS} sims, ROBUST threshold = "
           f"median_sim_sharpe / original_sharpe >= {ROBUST_RATIO}")
+    print(f"Workers: {n_workers}{'  (serial)' if n_workers == 1 else ''}")
     print()
 
     records: list[dict] = []
-    for i, passer in enumerate(passers, 1):
-        tag = f"{passer['strategy']}::{passer['symbol']}::{passer.get('timeframe', '1d')}"
-        print(f"[{i}/{len(passers)}] bootstrapping {tag} ...", flush=True)
-        try:
-            rec = _bootstrap_one(passer)
-        except Exception as exc:
-            rec = {
-                "strategy": passer["strategy"],
-                "symbol": passer["symbol"],
-                "timeframe": passer.get("timeframe", "1d"),
-                "error": f"{type(exc).__name__}: {exc}",
-                "verdict": "ERROR",
-            }
-        records.append(rec)
-
-        if rec.get("verdict") == "ERROR":
-            print(f"    ERROR: {rec.get('error')}")
-        else:
-            print(
-                f"    orig Sharpe={rec['original_sharpe']:.3f}  "
-                f"sim p25/p50/p75={rec['sim_sharpe_p25']:.3f}/"
-                f"{rec['sim_sharpe_median']:.3f}/{rec['sim_sharpe_p75']:.3f}  "
-                f"ratio={rec['ratio_median_to_original']:.2f}  "
-                f"[{rec['verdict']}]  ({rec['elapsed_s']}s)"
-            )
+    t_start = time.time()
+    if n_workers == 1:
+        for i, passer in enumerate(passers, 1):
+            rec = _safe_bootstrap(passer)
+            records.append(rec)
+            _print_record(i, len(passers), rec)
+    else:
+        # ProcessPoolExecutor with as_completed: stream results as workers finish
+        # so the user sees progress instead of a long silence then a wall of output.
+        with ProcessPoolExecutor(max_workers=n_workers) as pool:
+            futures = {pool.submit(_safe_bootstrap, p): p for p in passers}
+            done = 0
+            for fut in as_completed(futures):
+                done += 1
+                rec = fut.result()
+                records.append(rec)
+                _print_record(done, len(passers), rec)
+    elapsed_total = time.time() - t_start
+    print(f"\nElapsed total: {elapsed_total:.1f}s")
 
     n_robust = sum(1 for r in records if r.get("verdict") == "ROBUST")
     n_fragile = sum(1 for r in records if r.get("verdict") == "FRAGILE")
