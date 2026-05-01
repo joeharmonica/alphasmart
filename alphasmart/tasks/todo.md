@@ -1,104 +1,152 @@
 # AlphaSMART — Next-Session Pickup
 
-_Updated: 2026-04-26 — end of session 6_
+_Updated: 2026-05-01 — sweep + bootstrap + portfolio decision complete; verdict: NONE_
 
 ## Where we left off
 
-Session 6 wired in the **ATR trailing-stop wrapper** (`src/strategy/trailing_stop.py`)
-and confirmed it on NVDA: `cci_trend+stop` with `entry_level=75, exit_level=50,
-vol_threshold=0.8` produced **Sharpe 1.39 / MaxDD 21% / 33 trades / OOS-IS ratio
-0.82 across 4 walk-forward folds** — the project's first combined Gate1+Gate2
-pass. Lessons 26–28 in `tasks/lessons.md` capture the details.
+The full-universe walk-forward sweep (top-4 trend +stop strategies × 17 1d
+symbols) **finished 2026-05-01** in 8,437 s (2 h 20 min) wall-clock with
+trimmed grids on `keltner_breakout+stop` and `rsi_vwap+stop`. See lessons.md
+#29 for the per-strategy breakdown.
 
-The runner script `run_walkforward_top4.py` is written and tested on a single
-symbol but **the full-universe sweep was not launched** because the projected
-runtime is 6–8 hours (lesson #28) and we want to trim grids first.
+**Strict Gate 1 + Gate 2 result: 1 passer**
+- `cci_trend+stop` on NVDA — Sh=1.388 / CAGR=41.7% / MaxDD=21.4% / 33 trades / OFR=0.82.
+- Reproduces lessons #27 baseline exactly.
+
+**Relaxed Gate 1 (Sh ≥ 1.0, trades ≥ 15, strict Gate 2 OFR ≥ 0.70): 2 passers**
+- `cci_trend+stop` NVDA — same as above, semis.
+- `rsi_vwap+stop` V — Sh=1.095 / CAGR=7.2% / MaxDD=5.1% / 22 trades / OFR=1.042 / payments.
+
+**Block bootstrap (n=200, threshold 0.65): both FRAGILE — see lessons.md #33**
+- NVDA cci_trend+stop: sim p50=0.10 vs orig 1.39, ratio=0.07 → FRAGILE.
+- V rsi_vwap+stop:     sim p50=0.41 vs orig 1.10, ratio=0.37 → FRAGILE.
+- Headline finding (lessons #33): **strong OFR + weak bootstrap = path-dependent
+  edge.** Both passers had OFR ≥ 0.82, but OFR tests temporal generalisation on
+  the real series while bootstrap tests sequence-independence. Trend strategies
+  on assets with strong narratives (NVDA's bear→AI-rally arc) clear the first
+  but fail the second — what looks robust within the real timeline is actually
+  fitted to the timeline.
+
+**Portfolio decision: `NONE`** (`reports/portfolio_decision_20260501.json`).
+Zero ROBUST passers → no defensible paper-trading composition. Both are
+persisted to `optimized_params.json` for record-keeping but should not be
+deployed. Relaxed list at `reports/walkforward_top4_20260430_passers_relaxed.json`
+(strict file at `..._passers.json` is unchanged; the strict version remains
+the institutional record per lessons #31).
 
 ## Order of operations for next session
 
-### 1. Trim grids for the heavy strategies, then launch the full sweep
+### 1. Widen the strategy search (highest priority)
 
-In `run_walkforward_top4.py`, pass `custom_param_grid` overrides for
-`keltner_breakout+stop` and `rsi_vwap+stop` to bring per-strategy combo counts
-into roughly the same ballpark as `cci_trend+stop` (~33 combos). Suggested
-trims (4 dims × 2–3 values ≈ 18–27 combos):
+The bootstrap-FRAGILE result (lessons #33) reframes this from "we need 2
+more passers to reach 3" to "we need passers whose mechanic isn't path-
+dependent on a single asset's macro arc." That favours mean-reversion
+mechanics (rsi_vwap-style, bb_reversion-style) and cross-asset replicators
+over single-asset trend rides.
 
-```python
-TRIMMED_GRIDS = {
-    "keltner_breakout+stop": {
-        "period":       [15, 30],
-        "atr_period":   [10, 14],
-        "atr_mult":     [1.5, 2.0, 2.5],
-        "trend_period": [100, 200],
-    },
-    "rsi_vwap+stop": {
-        "vwap_period": [12, 24],
-        "rsi_period":  [10, 14],
-        "oversold":    [25.0, 30.0, 35.0],
-        "overbought":  [60.0, 70.0],
-    },
-}
+Run another walk-forward sweep across:
+- `momentum_long+stop` — momentum / ROC-based, similar in spirit to cci_trend
+  but on different parameter axes (different failure modes possible).
+- `donchian_bo+stop` — channel breakout, less narrative-dependent than
+  cci_trend in principle.
+- `alpha_composite+stop` — proprietary multi-signal composite; weight
+  constraints (lessons #11) keep it well-defined.
+- Plus broader mean-reversion: `bb_reversion+stop` (note: not currently in
+  `_STOP_WRAPPED`; would need to register it in both `optimizer.py` and
+  `api.py` first). Mean reversion historically clears bootstrap better than
+  trend (see V's ratio=0.37 vs NVDA's 0.07).
+
+On the same 17-symbol universe, with trimmed grids where applicable
+(donchian's 7-value period grid is fine; alpha_composite's 7-D grid needs
+care). Estimated runtime: ~2 h with current serialism. Outputs same shape
+as the previous sweep (`walkforward_top4_<date>.csv`, etc.).
+
+After the widened sweep, **bootstrap is a hard gate, not optional.** Any
+passer must clear both OFR ≥ 0.70 AND bootstrap ratio ≥ 0.65 to be
+considered for paper trading.
+
+### 2. Watch for cross-asset replication
+
+The pattern that *would* be defensible is the same strategy passing both
+gates on multiple uncorrelated symbols (e.g. rsi_vwap+stop on V AND MA AND
+NVO with all three ROBUST). Per lessons #33, that cross-asset replication
+is the actual robustness signal — not single-symbol OFR + bootstrap. Watch
+for it explicitly when reviewing the widened-sweep CSV.
+
+### 3. If still nothing: extend history (more expensive)
+
+Re-fetch 7-yr or 10-yr daily for the universe to give walk-forward more
+folds (currently 4 folds on 5-yr daily). Tradeoffs:
+- yfinance reliability degrades for older bars; may need Polygon upgrade.
+- Crypto pairs may not have 10 yr history at all.
+- More folds = stronger OFR signal, *but doesn't fix path-dependence* —
+  longer history of NVDA still has just one bear→AI-rally arc.
+
+### 4. Re-bucket the universe (long-term)
+
+Drop highly-correlated tickers (SPY, QQQ act like benchmark filters; MA
+correlates strongly with V → either V or MA, not both) and add sector-
+tilted symbols (utilities, energy, healthcare). Goal: maximise the
+diversity of macro shapes the strategies are tested against.
+
+### 5. Export sanitised opt-params (cosmetic, do anytime)
+
+```bash
+./venv/bin/python export_opt_params.py
 ```
 
-Then plumb these through `run_optimization(..., custom_param_grid=...)`. Expected
-total wall-clock with trims: ~3 hours. Run it in the background (`nohup` or a
-`tmux` session) — don't tie up an interactive shell.
+Writes `reports/optimized_params_<UTC date>.json` with `gate2_pass=true`
+entries only, timestamps stripped (machine-specific). Good for sharing
+across machines because the live file is gitignored.
 
-Outputs:
-- `reports/walkforward_top4_<UTC date>.csv` — every (strategy, symbol) row
-- `optimized_params.json` — Gate1+Gate2 passers persisted (auto-saved)
-- `reports/walkforward_top4_<UTC date>_passers.json` — passer summary
+### 6. Only after step 1 surfaces ≥ 3 uncorrelated passers that clear BOTH OFR and bootstrap — execution layer
 
-### 2. Bootstrap the passers
+Same as the previous session's plan; `alphasmart/src/execution/` is
+still only `__init__.py`. Build:
+- `src/execution/alpaca_broker.py` — paper endpoint adapter
+- Live data poller (yfinance, or upgrade to Polygon)
+- Signal/order loop mirroring the backtester's bar-close → next-open semantics
+- Position reconciliation (local Portfolio vs broker)
+- Daily P&L + reconciliation report
 
-Step 3 of the original plan. Once the walk-forward CSV is in, write
-`run_bootstrap_passers.py` that:
-- reads `walkforward_top4_<date>_passers.json`
-- runs `block_bootstrap` simulation (n=200) on each passer using
-  `src.backtest.simulation.run_simulation`
-- writes ROBUST/FRAGILE verdict per passer
-  (ROBUST = median sim Sharpe ≥ 65% of original)
-- emits `reports/bootstrap_passers_<UTC date>.json`
+Run ≥ 1 week in **shadow mode** before flipping to actual paper orders.
 
-The simulation harness is already in `src/backtest/simulation.py` — just need
-the loop. See `_run_simulate_sync` in `api.py` for the call pattern.
+## One-liner pipeline
 
-### 3. Decide on portfolio composition
+After step 1 has been kicked off with the relaxed JSON (or after a future
+sweep that produces a passers file matching the strict glob pattern):
 
-If we get ≥ 3 uncorrelated ROBUST passers across different sectors, build a
-paper-trading portfolio. If we get ≤ 2, we have a concentration problem and
-should:
-- (a) widen the strategy search (try momentum_long+stop, donchian_bo+stop,
-  alpha_composite+stop in a follow-up sweep), or
-- (b) fetch more history (try 7-yr or 10-yr daily data, if the data sources
-  permit) to give walk-forward more folds.
+```bash
+./run_phase4_pipeline.sh                      # auto-discover strict passers
+./run_phase4_pipeline.sh --workers 4          # cap bootstrap pool size
+./run_phase4_pipeline.sh --corr-threshold 0.6 # loosen portfolio selection
+```
 
-### 4. Only after step 3 — start on the execution layer
-
-`alphasmart/src/execution/` contains only `__init__.py`. To paper-trade we
-still need:
-- `src/execution/alpaca_broker.py` — paper endpoint adapter (Alpaca SDK)
-- A live data poller (poll yfinance or upgrade to Polygon for stocks)
-- A signal/order loop that mirrors the backtester's bar-close → order-at-next-open
-- Position reconciliation (compare local Portfolio state vs broker positions)
-- A daily P&L + reconciliation report
-
-Run for ≥ 1 week in **shadow mode** (log signals, don't submit) before
-flipping to actual paper orders. This catches divergence between live and
-backtest signal generation.
+Note: the pipeline script's auto-discovery glob is
+`walkforward_top4_*_passers.json` (won't match `_passers_relaxed.json`).
+For the relaxed run, invoke `run_bootstrap_passers.py` with an explicit
+path, then call `decide_portfolio.py` and `export_opt_params.py` directly.
 
 ## Things to know for context
 
-- **Walk-forward window override:** `run_walkforward_top4.py` patches
+- **Walk-forward windows:** `run_walkforward_top4.py` patches
   `_IS_YEARS=2, _OOS_YEARS=1, _STEP_YEARS=0.5` BEFORE importing the optimizer.
-  Default in `optimizer.py` is 3/1/1 which yields only 1 fold on 5-yr data.
+  Default in `optimizer.py` is 3/1/1 which yields only 1 fold on 5-yr daily.
 - **`+stop` registration:** Lives in `optimizer.py`'s `_STOP_WRAPPED` tuple
-  and `api.py`'s `_STOP_BASES` tuple. To add another strategy, add the key to
-  both. PARAM_GRIDS aliasing happens automatically.
-- **Risk halt is still active:** The 20% portfolio-level circuit breaker still
-  fires on cci_trend+stop NVDA at bar 950 (2025-01-07) because the trailing
-  stop was redundant for that config (CCI exit_level=50 was tighter than
-  2×ATR). On configs with looser inner exits, the stop fires first and the
-  halt won't trigger — that's the whole point of lesson #26.
-- **`optimized_params.json` is gitignored.** Anything saved by the runner is
-  local-only. To share across machines, commit a sanitised export.
+  and `api.py`'s `_STOP_BASES` tuple. Add a key to both when registering a
+  new wrapped strategy. PARAM_GRIDS aliasing happens automatically.
+- **Risk halt is still active:** The 20% portfolio-level circuit breaker
+  fires on `cci_trend+stop` NVDA at bar 950 (2025-01-07) when the trailing
+  stop is redundant (CCI exit_level=50 was tighter than 2×ATR). On configs
+  with looser inner exits, the stop fires first and the halt won't trigger
+  — that's lesson #26.
+- **`optimized_params.json` is gitignored.** Anything saved by the runner
+  is local-only. Use `export_opt_params.py` for a sanitised export.
+- **Trimmed grids saved ~30 min:** `keltner_breakout+stop` and
+  `rsi_vwap+stop` were trimmed to 24 combos each (from 108 / 96
+  full-grid). Strict cci/hull stayed at full grid.
+- **Trade-count floor (lessons #22) is the binding constraint:** TSLA
+  cci_trend+stop (Sh=1.526) and Hull NVDA (Sh=1.576) both look great on
+  Sharpe but fail on trade count. Lesson #31 covers when to relax it.
+- **OFR (lessons #30) is the real Gate 2 number** — sort by it, not by
+  `gate2_pass`. Relax it last, not first.

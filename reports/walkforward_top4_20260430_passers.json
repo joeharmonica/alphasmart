@@ -1,0 +1,17 @@
+[
+  {
+    "strategy": "cci_trend+stop",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "params": {
+      "entry_level": 75.0,
+      "exit_level": 50.0,
+      "vol_threshold": 0.8
+    },
+    "sharpe": 1.3879,
+    "cagr": 0.4171,
+    "max_drawdown": 0.2144,
+    "trade_count": 33,
+    "overfitting_score": 0.8204
+  }
+]

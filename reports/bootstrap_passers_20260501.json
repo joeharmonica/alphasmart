@@ -1,0 +1,64 @@
+{
+  "generated_utc": "2026-05-01T13:36:47.720854+00:00",
+  "source_passers": "/Users/joepong/AlphaSMART/reports/walkforward_top4_20260430_passers_relaxed.json",
+  "n_simulations": 200,
+  "robust_threshold": 0.65,
+  "summary": {
+    "robust": 0,
+    "fragile": 2,
+    "error": 0
+  },
+  "records": [
+    {
+      "strategy": "cci_trend+stop",
+      "symbol": "NVDA",
+      "timeframe": "1d",
+      "params": {
+        "entry_level": 75.0,
+        "exit_level": 50.0,
+        "vol_threshold": 0.8
+      },
+      "original_sharpe": 1.3879,
+      "original_cagr": 0.4171,
+      "original_max_drawdown": 0.2144,
+      "original_trade_count": 33,
+      "n_simulations": 200,
+      "sim_sharpe_p5": -2.8294,
+      "sim_sharpe_p25": -0.7255,
+      "sim_sharpe_median": 0.0975,
+      "sim_sharpe_p75": 0.7833,
+      "sim_sharpe_p95": 1.4374,
+      "sim_sharpe_mean": -0.1677,
+      "ratio_median_to_original": 0.0703,
+      "robust_threshold": 0.65,
+      "verdict": "FRAGILE",
+      "elapsed_s": 139.1
+    },
+    {
+      "strategy": "rsi_vwap+stop",
+      "symbol": "V",
+      "timeframe": "1d",
+      "params": {
+        "overbought": 60.0,
+        "oversold": 35.0,
+        "rsi_period": 10,
+        "vwap_period": 12
+      },
+      "original_sharpe": 1.0945,
+      "original_cagr": 0.0718,
+      "original_max_drawdown": 0.0506,
+      "original_trade_count": 22,
+      "n_simulations": 200,
+      "sim_sharpe_p5": -0.3133,
+      "sim_sharpe_p25": 0.1327,
+      "sim_sharpe_median": 0.406,
+      "sim_sharpe_p75": 0.6372,
+      "sim_sharpe_p95": 0.9867,
+      "sim_sharpe_mean": 0.3674,
+      "ratio_median_to_original": 0.3709,
+      "robust_threshold": 0.65,
+      "verdict": "FRAGILE",
+      "elapsed_s": 242.0
+    }
+  ]
+}

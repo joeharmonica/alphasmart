@@ -15,25 +15,32 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **3 — Optimization + LLM** | Walk-forward, grid search, Claude copilot, simulation | ✅ Complete |
 | **4 — Dashboard** | React UI, Next.js, optimization queue, opt-params persistence | ✅ Complete |
 | **6a — Per-trade stops** | ATR trailing-stop wrapper (`+stop` variants) | ✅ 2026-04-26 |
-| 6b — Robustness sweep | Walk-forward + bootstrap on top-4 × 19-symbol universe | 🔄 In progress |
-| 5 — Forward Testing | Paper trading, 30-day run | ⏸ Blocked on 6b ≥ 3 passers |
+| **6b — Robustness sweep** | Walk-forward on top-4 +stop × 17-symbol universe | ✅ 2026-05-01 |
+| **6c — Bootstrap + decision** | Block bootstrap on passers, portfolio decision gate | ✅ 2026-05-01 (verdict: NONE) |
+| 6d — Widen search | Add `momentum_long+stop`, `donchian_bo+stop`, `alpha_composite+stop`, mean-reversion +stop | 🔄 Next |
+| 5 — Forward Testing | Paper trading, 30-day run | ⏸ Blocked on ≥ 3 uncorrelated passers clearing BOTH OFR + bootstrap |
 | 7 — Live Deployment | Real capital, broker integration | 🔜 Planned |
 
-### Gate 1 Scoreboard (as of 2026-04-26)
+### Gate 1 Scoreboard (as of 2026-05-01, post-sweep)
 
-Strategies that have cleared Gate 1 (Sharpe > 1.2, MaxDD < 25%, ≥ 30 trades, positive return):
+Strategies that have cleared **strict Gate 1 + Gate 2** (Sharpe > 1.2, MaxDD < 25%, ≥ 30 trades, positive return; OFR ≥ 0.70):
 
-| # | Strategy | Symbol | Sharpe | CAGR | MaxDD | Trades | Total Return | Gate 2 |
-|---|----------|--------|--------|------|-------|--------|--------------|--------|
-| 1 | `cci_trend+stop` (entry=75, exit=50, vol=0.8) | NVDA | **1.39** | 41.7% | 21.4% | 33 | +272% | ✅ OOS/IS=0.82, 4 folds |
-| 2 | `cci_trend` (entry=75, exit=50, vol=0.8) | NVDA | 1.39 | 41.7% | 21.4% | 33 | +272% | (same — stop redundant on this config) |
-| 3 | `bb_reversion` (period=20, std=2.0) | NVDA | 1.21 | 24.5% | 17.5% | 82 | +198% | not yet evaluated |
+| # | Strategy | Symbol | Sharpe | CAGR | MaxDD | Trades | OFR | Sector |
+|---|----------|--------|--------|------|-------|--------|------|--------|
+| 1 | `cci_trend+stop` (entry=75, exit=50, vol=0.8) | NVDA | **1.39** | 41.7% | 21.4% | 33 | **0.82** | Semiconductors |
 
-**`cci_trend+stop` on NVDA is the project's first combined Gate1+Gate2 pass.**
-Walk-forward used IS=2yr / OOS=1yr / step=6mo → 4 folds on 5-yr daily data
-(see `tasks/lessons.md` #27).
+Strategies that clear **relaxed Gate 1 + strict Gate 2** (Sharpe ≥ 1.0, ≥ 15 trades; OFR ≥ 0.70). See `tasks/lessons.md` #31 for the rationale and when this relaxation is appropriate.
 
-All three winners are NVDA-specific. The 2021–2026 period embeds a 2022 bear market (NVDA –65%) that eliminates most strategies through the 20% drawdown circuit breaker before they can accumulate enough trades. Single-symbol concentration is **not** a paper-tradable portfolio — the next session is running the same walk-forward across all 19 symbols × 4 trend strategies (`+stop` variants) to find ≥ 3 uncorrelated passers (see `tasks/todo.md`).
+| # | Strategy | Symbol | Sharpe | CAGR | MaxDD | Trades | OFR | Sector |
+|---|----------|--------|--------|------|-------|--------|------|--------|
+| 1 | `cci_trend+stop` (entry=75, exit=50, vol=0.8) | NVDA | 1.39 | 41.7% | 21.4% | 33 | 0.82 | Semiconductors |
+| 2 | `rsi_vwap+stop` (vwap=12, rsi=10, os=35, ob=60) | V | 1.10 | 7.2% | 5.1% | 22 | **1.04** | Payments |
+
+**Sweep summary (2026-04-30 → 05-01):** 68 (strategy, symbol) runs across `cci_trend+stop`, `hull_ma_crossover+stop`, `keltner_breakout+stop`, `rsi_vwap+stop` on 17 symbols, 9,452 total backtests in 8,437 s (2 h 20 m) wall-clock. The strict run produced 1 passer (NVDA) — exact reproduction of the lessons #27 baseline. The relaxed analysis (lessons #31) surfaces a second passer in a different sector (V).
+
+**⚠ Bootstrap follow-up (2026-05-01):** Both passers came back **FRAGILE** under block bootstrap (n=200). NVDA cci_trend+stop: ratio=0.07 (sim median 0.10 vs original 1.39). V rsi_vwap+stop: ratio=0.37 (sim median 0.41 vs original 1.10). **Strong OFR + weak bootstrap = path-dependent edge** — see lessons #33. Portfolio decision verdict: `NONE`. No defensible paper-trading composition; widen search per `tasks/todo.md` step 1.
+
+The 2021–2026 period embeds a 2022 bear market (NVDA –65%, broad tech –30%+) that eliminates most strategies through the 20% drawdown circuit breaker or insufficient trade count. Single-passer (or even 2-passer) concentration is **not** a paper-tradable portfolio — lessons #27 sets the bar at ≥ 3 uncorrelated ROBUST passers across sectors. Next steps: bootstrap the relaxed set, then either (a) widen the strategy search to `momentum_long+stop`, `donchian_bo+stop`, `alpha_composite+stop` or (b) extend history to 7–10 yr daily for more walk-forward folds. See `tasks/todo.md`.
 
 ### Strategy-level trailing stop
 
@@ -224,11 +231,12 @@ Select the objective in the **Optimizer** sidebar before running. The result sho
 ### Gate 1 (backtest qualification)
 - Sharpe > 1.2
 - Max Drawdown < 25%
-- ≥ 100 trades
+- ≥ 30 trades (lowered from 100 in 2026-04 — see lessons.md #22)
 - Positive total return
 
-### Gate 2 (optimization stability)
-- OOS Sharpe ≥ 70% of in-sample Sharpe across walk-forward folds
+### Gate 2 (optimization stability — OFR)
+- **OFR (Overfitting Ratio)** = mean over folds of `max(OOS_Sharpe, 0) / IS_Sharpe`
+- Gate passes when OFR ≥ 0.70 (see lessons.md #30 for calibration)
 
 ### Optimization Queue
 

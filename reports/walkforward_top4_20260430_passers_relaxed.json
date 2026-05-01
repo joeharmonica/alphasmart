@@ -1,0 +1,33 @@
+[
+  {
+    "strategy": "cci_trend+stop",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "params": {
+      "entry_level": 75.0,
+      "exit_level": 50.0,
+      "vol_threshold": 0.8
+    },
+    "sharpe": 1.3879,
+    "cagr": 0.4171,
+    "max_drawdown": 0.2144,
+    "trade_count": 33,
+    "overfitting_score": 0.8204
+  },
+  {
+    "strategy": "rsi_vwap+stop",
+    "symbol": "V",
+    "timeframe": "1d",
+    "params": {
+      "overbought": 60.0,
+      "oversold": 35.0,
+      "rsi_period": 10,
+      "vwap_period": 12
+    },
+    "sharpe": 1.0945,
+    "cagr": 0.0718,
+    "max_drawdown": 0.0506,
+    "trade_count": 22,
+    "overfitting_score": 1.0415
+  }
+]
