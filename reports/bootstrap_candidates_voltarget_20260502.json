@@ -1,0 +1,160 @@
+[
+  {
+    "strategy": "cci_trend+stop+vol",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "params": {
+      "entry_level": 75.0,
+      "exit_level": 50.0,
+      "vol_threshold": 0.8
+    },
+    "sharpe": 1.3879,
+    "cagr": 0.4171,
+    "max_drawdown": 0.2144,
+    "trade_count": 33,
+    "overfitting_score": null,
+    "orig_bootstrap_ratio": 0.0703,
+    "orig_verdict": "FRAGILE"
+  },
+  {
+    "strategy": "rsi_vwap+stop+vol",
+    "symbol": "V",
+    "timeframe": "1d",
+    "params": {
+      "overbought": 60.0,
+      "oversold": 35.0,
+      "rsi_period": 10,
+      "vwap_period": 12
+    },
+    "sharpe": 1.0945,
+    "cagr": 0.0718,
+    "max_drawdown": 0.0506,
+    "trade_count": 22,
+    "overfitting_score": null,
+    "orig_bootstrap_ratio": 0.3709,
+    "orig_verdict": "FRAGILE"
+  },
+  {
+    "strategy": "bb_reversion+stop+vol",
+    "symbol": "NOW",
+    "timeframe": "1wk",
+    "params": {
+      "period": 4,
+      "std_dev": 1.5
+    },
+    "sharpe": 1.016,
+    "cagr": 0.14,
+    "max_drawdown": 0.1473,
+    "trade_count": 25,
+    "overfitting_score": null,
+    "orig_bootstrap_ratio": -0.3663,
+    "orig_verdict": "FRAGILE"
+  },
+  {
+    "strategy": "donchian_bo+stop+vol",
+    "symbol": "NVDA",
+    "timeframe": "1wk",
+    "params": {
+      "period": 4
+    },
+    "sharpe": 1.3765,
+    "cagr": 0.1614,
+    "max_drawdown": 0.0561,
+    "trade_count": 27,
+    "overfitting_score": null,
+    "orig_bootstrap_ratio": 0.1462,
+    "orig_verdict": "FRAGILE"
+  },
+  {
+    "strategy": "bb_reversion+stop+vol",
+    "symbol": "NVDA",
+    "timeframe": "1wk",
+    "params": {
+      "period": 8,
+      "std_dev": 1.5
+    },
+    "sharpe": 1.3439,
+    "cagr": 0.287,
+    "max_drawdown": 0.0793,
+    "trade_count": 20,
+    "overfitting_score": null,
+    "orig_bootstrap_ratio": -0.0101,
+    "orig_verdict": "FRAGILE"
+  },
+  {
+    "strategy": "alpha_composite+stop+vol",
+    "symbol": "ASML",
+    "timeframe": "1wk",
+    "params": {
+      "entry_threshold": 0.5,
+      "fast_ema": 3,
+      "rsi_oversold": 40.0,
+      "rsi_period": 6,
+      "rsi_weight": 0.35,
+      "slow_ema": 20,
+      "trend_weight": 0.45,
+      "vol_weight": 0.2
+    },
+    "sharpe": 1.1594,
+    "cagr": 0.1377,
+    "max_drawdown": 0.1266,
+    "trade_count": 21,
+    "overfitting_score": null,
+    "orig_bootstrap_ratio": -0.0077,
+    "orig_verdict": "FRAGILE"
+  },
+  {
+    "strategy": "bb_reversion+stop+vol",
+    "symbol": "SPY",
+    "timeframe": "1wk",
+    "params": {
+      "period": 4,
+      "std_dev": 1.5
+    },
+    "sharpe": 1.0496,
+    "cagr": 0.0775,
+    "max_drawdown": 0.0386,
+    "trade_count": 21,
+    "overfitting_score": null,
+    "orig_bootstrap_ratio": 0.0846,
+    "orig_verdict": "FRAGILE"
+  },
+  {
+    "strategy": "bb_reversion+stop+vol",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "params": {
+      "period": 15,
+      "std_dev": 1.5
+    },
+    "sharpe": 1.1733,
+    "cagr": 0.2321,
+    "max_drawdown": 0.1609,
+    "trade_count": 82,
+    "overfitting_score": null,
+    "orig_bootstrap_ratio": -0.3853,
+    "orig_verdict": "FRAGILE"
+  },
+  {
+    "strategy": "alpha_composite+stop+vol",
+    "symbol": "GOOG",
+    "timeframe": "1wk",
+    "params": {
+      "entry_threshold": 0.55,
+      "fast_ema": 5,
+      "rsi_oversold": 40.0,
+      "rsi_period": 6,
+      "rsi_weight": 0.35,
+      "slow_ema": 10,
+      "trend_weight": 0.45,
+      "vol_weight": 0.2
+    },
+    "sharpe": 1.0265,
+    "cagr": 0.0729,
+    "max_drawdown": 0.0781,
+    "trade_count": 35,
+    "overfitting_score": null,
+    "orig_bootstrap_ratio": 0.3173,
+    "orig_verdict": "FRAGILE"
+  }
+]

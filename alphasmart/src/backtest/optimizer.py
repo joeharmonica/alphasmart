@@ -39,6 +39,7 @@ from src.strategy.keltner_breakout import KeltnerBreakoutStrategy
 from src.strategy.hull_ma_crossover import HullMACrossoverStrategy
 from src.strategy.rsi_vwap import RSIVWAPStrategy
 from src.strategy.trailing_stop import TrailingStopStrategy
+from src.strategy.vol_target import VolTargetStrategy
 
 # Strategies that get a `+stop` variant (ATR trailing stop wrapper).
 # Trend / momentum strategies benefit most; mean-reversion strategies have
@@ -55,6 +56,8 @@ _STOP_WRAPPED = (
     "momentum_long",
     "triple_screen",
     "alpha_composite",
+    "bb_reversion",
+    "zscore_reversion",
 )
 
 # ---------------------------------------------------------------------------
@@ -191,6 +194,16 @@ for _base in _STOP_WRAPPED:
     if _base in STABILITY_AXES:
         STABILITY_AXES[f"{_base}+stop"] = STABILITY_AXES[_base]
 
+# Auto-register +vol and +stop+vol variants — vol-targeting wrapper layered
+# on top of the base (or stop-wrapped) strategy. Same grid as the underlying.
+for _base in _STOP_WRAPPED:
+    if _base in PARAM_GRIDS:
+        PARAM_GRIDS[f"{_base}+vol"] = PARAM_GRIDS[_base]
+        PARAM_GRIDS[f"{_base}+stop+vol"] = PARAM_GRIDS[_base]
+    if _base in STABILITY_AXES:
+        STABILITY_AXES[f"{_base}+vol"] = STABILITY_AXES[_base]
+        STABILITY_AXES[f"{_base}+stop+vol"] = STABILITY_AXES[_base]
+
 # Walk-forward window sizes in bars — scaled per timeframe in run_optimization()
 _IS_YEARS  = 3    # 3 years in-sample
 _OOS_YEARS = 1    # 1 year out-of-sample
@@ -207,9 +220,18 @@ OptObjective = Literal["sharpe", "cagr", "max_drawdown", "profit_factor"]
 def _make_strategy(strategy_key: str, symbol: str, params: dict):
     """Instantiate a strategy with given params.
 
-    Keys ending in `+stop` build the inner strategy from the prefix and wrap
-    it in TrailingStopStrategy with default ATR(14) * 2.0 stop distance.
+    Suffix chain (right-to-left wrapping):
+      - `+vol`  → wrap recursive `<prefix>` in VolTargetStrategy (outside)
+      - `+stop` → wrap recursive `<prefix>` in TrailingStopStrategy
+
+    `<base>+stop+vol` therefore resolves as
+    VolTarget(TrailingStop(BaseStrategy)) — vol-targeting on the outside
+    rescales the order quantity emitted by the trailing-stop-wrapped inner.
     """
+    if strategy_key.endswith("+vol"):
+        base_key = strategy_key[: -len("+vol")]
+        inner = _make_strategy(base_key, symbol, params)
+        return VolTargetStrategy(inner)
     if strategy_key.endswith("+stop"):
         base_key = strategy_key[: -len("+stop")]
         inner = _make_strategy(base_key, symbol, params)

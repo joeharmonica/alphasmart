@@ -352,3 +352,34 @@ This is the first (strategy, symbol) combination in the project to clear both ga
 **Rule:** **OFR is necessary but not sufficient.** Treat both Gate 2 (OFR ≥ 0.70) and bootstrap (ratio ≥ 0.65) as required gates with no relaxation tradeoff between them — they catch *different* failure modes, so a strategy that fails either is unsafe. **Block bootstrap is the harder test for trend strategies on assets with strong narratives** because it specifically destroys the macro structure those strategies fit. When designing future sweeps, expect OFR-passing trend strategies to fail bootstrap unless they generalise across multiple assets with different macro shapes — that cross-asset replication is the actual robustness signal we want, not single-asset OFR + bootstrap.
 
 **Implication for portfolio strategy:** Prefer mean-reversion mechanics (rsi_vwap-style, bb_reversion-style) for paper-trading candidates over single-asset trend mechanics, because mean reversion is less path-dependent — the edge comes from a recurring local pattern rather than a unique macro arc. Trend mechanics are still valuable but need to *replicate across multiple uncorrelated symbols* before being trusted, since any single-symbol trend pass is suspect under bootstrap.
+
+---
+
+## 34. Architectural Falsification — The Single-Asset Universe Cannot Pass the Full Robustness Bar
+
+**Result (2026-05-02):** After 4 sweeps × 3 bootstrap rounds × 1 wrapper retrofit × 1 history-extension test, **zero candidates cleared the full pipeline**. Every available lever within the single-asset, daily/weekly, 17-symbol architecture has been falsified.
+
+**Levers tested and outcomes:**
+| Lever | Result |
+|---|---|
+| Trend mechanics (top-4 +stop, 5-yr 1d) | 1 strict G1+G2; bootstrap ratio 0.07 → FRAGILE |
+| Mechanic widening (momentum / donchian / alpha_composite / bb_reversion +stop) | 0 strict; 1 relaxed near-miss; all FRAGILE under bootstrap |
+| Cross-timeframe replication (1wk × same 8 strategies) | 8 relaxed-gate passers (best signal: bb_reversion+stop NVDA replicated on both 1d AND 1wk); all 7 bootstrap candidates FRAGILE |
+| Pair-spread mechanics (5 sector pairs × 2 mean-reversion strategies) | 0 G1+G2; max Sharpe 0.55 — robust mechanic but no edge after costs |
+| Vol-targeting wrapper (`+stop+vol`) on 9 fragile candidates | Lifted negative ratios to ~0; top ratio 0.28 vs 0.65 cutoff |
+| 10-yr history extension on 3 1d candidates | **Original Sharpes collapsed 30–50%** (1.39→0.81, 1.10→0.83, 1.17→0.64); cci_trend NVDA bootstrap ratio improved 0.07 → 0.52 (validates path-dependence diagnosis) but absolute Sharpe too low to be tradable |
+
+**The headline empirical finding (10-yr extension):** `cci_trend+stop` on NVDA produced Sharpe **1.388 on 5-yr daily** (the project's only strict G1+G2 pass — lessons #27); the same strategy's optimal 10-yr Sharpe is **0.810**. That 0.58 drop is the strategy's specific dependence on the 2022 bear → 2023–24 AI rally arc — when the optimizer can pick params over a window that *also* contains 2018 selloff + 2020 COVID + multiple sideways periods, the chosen params land on a much weaker equilibrium edge. **The 5-yr Sharpe was real but unrepeatable.**
+
+**The most important diagnostic improvement (also from the 10-yr extension):** the same cci_trend NVDA candidate's bootstrap ratio went from 0.07 (5-yr data) → **0.52 (10-yr data)**. This is direct evidence that path-dependence *was* the dominant bootstrap-failure mechanism — block-bootstrap with 10 yr of return blocks produces synthetic paths that are *less* dominated by the 2022→2024 arc, so the strategy's edge generalises better. But because the absolute Sharpe also dropped, the sim median (~0.42) is now too low to deploy. **Closest case to ROBUST in the entire project, and still 0.13 short.**
+
+**Architectural conclusion:** The bottleneck is not the strategy class, the wrapper choice, the trade-count threshold, or the data length. It is the *single-asset framework itself*. Every long-only strategy on a single equity is by construction making a directional bet on that asset's specific macro path. Any optimizer that selects params on a fixed history window is fitting to that path. Bootstrap correctly identifies this — and the 10-yr test confirmed that more data attenuates but does not eliminate the failure mode, because the absolute edge available within a single-asset directional bet is small enough that fitting noise dominates signal.
+
+**What would actually work (path-independent edges):**
+1. **Cross-sectional / portfolio strategies** — long top-N, short bottom-N by momentum/quality/value. The edge is *relative ranking* across many assets, not an absolute price path. Generates hundreds of independent signals per day vs ~30 per year for a single-asset trend strategy. Requires extending the backtest engine to multi-symbol simultaneous orders (~1–2 days build).
+2. **Factor models with explicit risk attribution** — Fama-French style, decomposing returns into market / size / value / momentum factors. Different research stack entirely.
+3. **Alternative data** — earnings drift, news sentiment, options flow. Out of scope for this codebase.
+
+**Rule:** When every available lever within an architecture has been falsified, *the architecture is the result*. Don't keep searching for the missing strategy choice — name the conclusion. The single-asset, 5–10-yr daily/weekly long-only backtest framework is **methodologically incapable of producing a bootstrap-robust paper-tradable edge on this 17-symbol universe**. The honest path forward is to (a) treat the framework as a research testbed that has correctly *rejected* every strategy in its scope (a real and rare result), and (b) only invest further engineering effort if pivoting to a structurally different architecture (cross-sectional / multi-asset) where the edge isn't path-dependent by construction.
+
+**What the artifact actually is, after this session:** a methodologically rigorous robustness pipeline (walk-forward + OFR + block bootstrap + portfolio decision gate + cross-timeframe replication test + vol-targeting overlay) that *successfully falsified* every candidate it was given. That is unusual and useful — most retail backtest tooling will happily declare a 5-yr Sharpe-1.4 strategy tradable; this pipeline correctly refused.

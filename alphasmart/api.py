@@ -52,6 +52,7 @@ from src.strategy.keltner_breakout import KeltnerBreakoutStrategy
 from src.strategy.hull_ma_crossover import HullMACrossoverStrategy
 from src.strategy.rsi_vwap import RSIVWAPStrategy
 from src.strategy.trailing_stop import TrailingStopStrategy
+from src.strategy.vol_target import VolTargetStrategy
 
 # ---------------------------------------------------------------------------
 # Config
@@ -141,6 +142,8 @@ _STOP_BASES = (
     "momentum_long",
     "triple_screen",
     "alpha_composite",
+    "bb_reversion",
+    "zscore_reversion",
 )
 
 
@@ -151,6 +154,21 @@ def _make_stop_factory(base_key: str):
 
 for _base in _STOP_BASES:
     STRATEGY_MAP[f"{_base}+stop"] = _make_stop_factory(_base)
+
+
+def _make_vol_factory(base_key: str):
+    base_factory = STRATEGY_MAP[base_key]
+    return lambda sym: VolTargetStrategy(base_factory(sym))
+
+
+def _make_stop_vol_factory(base_key: str):
+    base_factory = STRATEGY_MAP[base_key]
+    return lambda sym: VolTargetStrategy(TrailingStopStrategy(base_factory(sym)))
+
+
+for _base in _STOP_BASES:
+    STRATEGY_MAP[f"{_base}+vol"] = _make_vol_factory(_base)
+    STRATEGY_MAP[f"{_base}+stop+vol"] = _make_stop_vol_factory(_base)
 
 STRATEGY_LABELS = {
     # --- Original 5 ---
@@ -181,6 +199,8 @@ STRATEGY_LABELS = {
 
 for _base in _STOP_BASES:
     STRATEGY_LABELS[f"{_base}+stop"] = f"{STRATEGY_LABELS[_base]} +Stop"
+    STRATEGY_LABELS[f"{_base}+vol"] = f"{STRATEGY_LABELS[_base]} +Vol"
+    STRATEGY_LABELS[f"{_base}+stop+vol"] = f"{STRATEGY_LABELS[_base]} +Stop+Vol"
 
 # ---------------------------------------------------------------------------
 # App

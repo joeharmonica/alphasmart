@@ -1,0 +1,88 @@
+{
+  "generated_utc": "2026-05-02T14:39:44.684376+00:00",
+  "source_passers": "/Users/joepong/AlphaSMART/reports/walkforward_10y_focused_20260502_passers.json",
+  "n_simulations": 200,
+  "robust_threshold": 0.65,
+  "summary": {
+    "robust": 0,
+    "fragile": 3,
+    "error": 0
+  },
+  "records": [
+    {
+      "strategy": "bb_reversion+stop",
+      "symbol": "NVDA",
+      "timeframe": "1d",
+      "params": {
+        "period": 30,
+        "std_dev": 1.5
+      },
+      "original_sharpe": 0.6437,
+      "original_cagr": 0.1014,
+      "original_max_drawdown": 0.1939,
+      "original_trade_count": 70,
+      "n_simulations": 200,
+      "sim_sharpe_p5": -1.9894,
+      "sim_sharpe_p25": -0.9002,
+      "sim_sharpe_median": -0.3096,
+      "sim_sharpe_p75": 0.1576,
+      "sim_sharpe_p95": 0.4841,
+      "sim_sharpe_mean": -0.5014,
+      "ratio_median_to_original": -0.481,
+      "robust_threshold": 0.65,
+      "verdict": "FRAGILE",
+      "elapsed_s": 205.4
+    },
+    {
+      "strategy": "rsi_vwap+stop",
+      "symbol": "V",
+      "timeframe": "1d",
+      "params": {
+        "vwap_period": 12,
+        "rsi_period": 14,
+        "oversold": 35.0,
+        "overbought": 60.0
+      },
+      "original_sharpe": 0.8335,
+      "original_cagr": 0.038,
+      "original_max_drawdown": 0.0506,
+      "original_trade_count": 18,
+      "n_simulations": 200,
+      "sim_sharpe_p5": -0.1767,
+      "sim_sharpe_p25": 0.1625,
+      "sim_sharpe_median": 0.3266,
+      "sim_sharpe_p75": 0.5092,
+      "sim_sharpe_p95": 0.7407,
+      "sim_sharpe_mean": 0.3169,
+      "ratio_median_to_original": 0.3919,
+      "robust_threshold": 0.65,
+      "verdict": "FRAGILE",
+      "elapsed_s": 1210.3
+    },
+    {
+      "strategy": "cci_trend+stop",
+      "symbol": "NVDA",
+      "timeframe": "1d",
+      "params": {
+        "entry_level": 50.0,
+        "exit_level": 0.0,
+        "vol_threshold": 1.2
+      },
+      "original_sharpe": 0.8103,
+      "original_cagr": 0.1117,
+      "original_max_drawdown": 0.1841,
+      "original_trade_count": 25,
+      "n_simulations": 200,
+      "sim_sharpe_p5": -1.5932,
+      "sim_sharpe_p25": -0.2361,
+      "sim_sharpe_median": 0.4186,
+      "sim_sharpe_p75": 0.7417,
+      "sim_sharpe_p95": 1.1535,
+      "sim_sharpe_mean": 0.1464,
+      "ratio_median_to_original": 0.5167,
+      "robust_threshold": 0.65,
+      "verdict": "FRAGILE",
+      "elapsed_s": 1321.9
+    }
+  ]
+}

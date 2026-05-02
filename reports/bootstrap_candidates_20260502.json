@@ -1,0 +1,111 @@
+[
+  {
+    "strategy": "bb_reversion+stop",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "params": {
+      "period": 15,
+      "std_dev": 1.5
+    },
+    "sharpe": 1.1733,
+    "cagr": 0.2321,
+    "max_drawdown": 0.1609,
+    "trade_count": 82,
+    "overfitting_score": 0.9259
+  },
+  {
+    "strategy": "bb_reversion+stop",
+    "symbol": "NVDA",
+    "timeframe": "1wk",
+    "params": {
+      "period": 8,
+      "std_dev": 1.5
+    },
+    "sharpe": 1.3439,
+    "cagr": 0.287,
+    "max_drawdown": 0.0793,
+    "trade_count": 20,
+    "overfitting_score": 1.0647
+  },
+  {
+    "strategy": "donchian_bo+stop",
+    "symbol": "NVDA",
+    "timeframe": "1wk",
+    "params": {
+      "period": 4
+    },
+    "sharpe": 1.3765,
+    "cagr": 0.1614,
+    "max_drawdown": 0.0561,
+    "trade_count": 27,
+    "overfitting_score": 0.99
+  },
+  {
+    "strategy": "alpha_composite+stop",
+    "symbol": "GOOG",
+    "timeframe": "1wk",
+    "params": {
+      "entry_threshold": 0.55,
+      "fast_ema": 5,
+      "rsi_oversold": 40.0,
+      "rsi_period": 6,
+      "rsi_weight": 0.35,
+      "slow_ema": 10,
+      "trend_weight": 0.45,
+      "vol_weight": 0.2
+    },
+    "sharpe": 1.0265,
+    "cagr": 0.0729,
+    "max_drawdown": 0.0781,
+    "trade_count": 35,
+    "overfitting_score": 1.6759
+  },
+  {
+    "strategy": "alpha_composite+stop",
+    "symbol": "ASML",
+    "timeframe": "1wk",
+    "params": {
+      "entry_threshold": 0.5,
+      "fast_ema": 3,
+      "rsi_oversold": 40.0,
+      "rsi_period": 6,
+      "rsi_weight": 0.35,
+      "slow_ema": 20,
+      "trend_weight": 0.45,
+      "vol_weight": 0.2
+    },
+    "sharpe": 1.1594,
+    "cagr": 0.1377,
+    "max_drawdown": 0.1266,
+    "trade_count": 21,
+    "overfitting_score": 0.9575
+  },
+  {
+    "strategy": "bb_reversion+stop",
+    "symbol": "NOW",
+    "timeframe": "1wk",
+    "params": {
+      "period": 4,
+      "std_dev": 1.5
+    },
+    "sharpe": 1.016,
+    "cagr": 0.14,
+    "max_drawdown": 0.1473,
+    "trade_count": 25,
+    "overfitting_score": 0.8852
+  },
+  {
+    "strategy": "bb_reversion+stop",
+    "symbol": "SPY",
+    "timeframe": "1wk",
+    "params": {
+      "period": 4,
+      "std_dev": 1.5
+    },
+    "sharpe": 1.0496,
+    "cagr": 0.0775,
+    "max_drawdown": 0.0386,
+    "trade_count": 21,
+    "overfitting_score": 0.8009
+  }
+]

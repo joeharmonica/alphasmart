@@ -1,6 +1,13 @@
 # AlphaSMART — Next-Session Pickup
 
-_Updated: 2026-05-01 — sweep + bootstrap + portfolio decision complete; verdict: NONE_
+_Updated: 2026-05-02 — full architectural falsification complete; see lessons.md #34_
+
+> **🔚 Status:** every available lever within the single-asset 1d/1wk architecture
+> has been falsified (4 sweeps, 3 bootstrap rounds, 1 wrapper retrofit, 1 history
+> extension). Verdict: NONE across the board. The honest next move is either
+> (a) treat the framework as a research testbed that successfully *rejected* its
+> candidates and stop, or (b) pivot to a structurally different architecture
+> (cross-sectional / multi-asset). See lessons.md #34 for the empirical case.
 
 ## Where we left off
 

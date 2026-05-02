@@ -1,0 +1,11 @@
+strategy,symbol,timeframe,valid_combos,best_sharpe,best_cagr,best_max_drawdown,best_trade_count,gate1_pass,wf_folds,overfitting_score,gate2_pass,best_params,error
+zscore_reversion+stop,V-MA,1d,36,-0.2969,-0.0083,0.0648,46,False,4,0.0,False,"{""entry_z"": 1.5, ""exit_z"": 0.5, ""period"": 60}",
+zscore_reversion+stop,NVDA-AVGO,1d,36,0.2624,0.0166,0.1016,80,False,4,0.0073,False,"{""entry_z"": 2.0, ""exit_z"": 0.25, ""period"": 20}",
+zscore_reversion+stop,MSFT-GOOG,1d,36,0.5499,0.0178,0.0364,47,False,4,0.0,False,"{""entry_z"": 1.5, ""exit_z"": 0.5, ""period"": 60}",
+zscore_reversion+stop,AAPL-MSFT,1d,36,0.5088,0.0187,0.0514,40,False,4,0.5186,False,"{""entry_z"": 2.5, ""exit_z"": 0.0, ""period"": 60}",
+zscore_reversion+stop,ASML-AVGO,1d,36,-0.4715,-0.0315,0.1892,25,False,4,0.0,False,"{""entry_z"": 1.5, ""exit_z"": 0.0, ""period"": 60}",
+bb_reversion+stop,V-MA,1d,12,-0.2758,-0.0066,0.0474,17,False,4,0.0,False,"{""period"": 15, ""std_dev"": 2.5}",
+bb_reversion+stop,NVDA-AVGO,1d,12,-0.4336,-0.0262,0.1728,14,False,4,0.0,False,"{""period"": 20, ""std_dev"": 2.5}",
+bb_reversion+stop,MSFT-GOOG,1d,12,-0.0028,-0.0047,0.1913,41,False,4,0.2773,False,"{""period"": 30, ""std_dev"": 1.5}",
+bb_reversion+stop,AAPL-MSFT,1d,12,0.4634,0.0279,0.0976,26,False,4,0.2529,False,"{""period"": 30, ""std_dev"": 2.0}",
+bb_reversion+stop,ASML-AVGO,1d,12,0.2766,0.0169,0.0775,22,False,4,0.4305,False,"{""period"": 30, ""std_dev"": 2.5}",

@@ -1,0 +1,56 @@
+[
+  {
+    "strategy": "cci_trend+stop",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "params": {
+      "entry_level": 50.0,
+      "exit_level": 0.0,
+      "vol_threshold": 1.2
+    },
+    "sharpe": 0.8103,
+    "cagr": 0.1117,
+    "max_drawdown": 0.1841,
+    "trade_count": 25,
+    "overfitting_score": 0.8241,
+    "wf_folds": 14,
+    "gate1_pass": false,
+    "gate2_pass": true
+  },
+  {
+    "strategy": "rsi_vwap+stop",
+    "symbol": "V",
+    "timeframe": "1d",
+    "params": {
+      "vwap_period": 12,
+      "rsi_period": 14,
+      "oversold": 35.0,
+      "overbought": 60.0
+    },
+    "sharpe": 0.8335,
+    "cagr": 0.038,
+    "max_drawdown": 0.0506,
+    "trade_count": 18,
+    "overfitting_score": 0.5991,
+    "wf_folds": 14,
+    "gate1_pass": false,
+    "gate2_pass": false
+  },
+  {
+    "strategy": "bb_reversion+stop",
+    "symbol": "NVDA",
+    "timeframe": "1d",
+    "params": {
+      "period": 30,
+      "std_dev": 1.5
+    },
+    "sharpe": 0.6437,
+    "cagr": 0.1014,
+    "max_drawdown": 0.1939,
+    "trade_count": 70,
+    "overfitting_score": 0.8794,
+    "wf_folds": 14,
+    "gate1_pass": false,
+    "gate2_pass": true
+  }
+]

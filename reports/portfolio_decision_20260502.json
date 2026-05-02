@@ -1,0 +1,9 @@
+{
+  "generated_utc": "2026-05-02T14:40:02.790646+00:00",
+  "source_bootstrap": "/Users/joepong/AlphaSMART/reports/bootstrap_passers_20260502.json",
+  "corr_threshold": 0.5,
+  "verdict": "NONE",
+  "robust_count": 0,
+  "selected": [],
+  "message": "No ROBUST passers \u2014 widen strategy search or extend history (todo.md \u00a73)."
+}

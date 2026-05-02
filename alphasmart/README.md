@@ -4,6 +4,8 @@
 
 A full-stack algorithmic trading platform: strategy research → backtesting → optimization → bootstrapping simulation → forward testing → live deployment, with an LLM analytical copilot and institutional-grade risk controls.
 
+> **🔚 Architectural status (2026-05-02):** the single-asset, 17-symbol, 5–10-yr daily/weekly long-only backtest framework has been *systematically falsified* across all available levers (mechanic diversity, cross-timeframe replication, pair spreads, vol-targeting, extended history). The robustness pipeline correctly rejected every candidate — a real and unusual result. Paper trading is **not viable on this architecture**. See [`tasks/lessons.md` #34](tasks/lessons.md) for the full reasoning. Phase 8 (cross-sectional / multi-asset engine) is the proposed pivot.
+
 ---
 
 ## Current Status
@@ -17,28 +19,34 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **6a — Per-trade stops** | ATR trailing-stop wrapper (`+stop` variants) | ✅ 2026-04-26 |
 | **6b — Robustness sweep** | Walk-forward on top-4 +stop × 17-symbol universe | ✅ 2026-05-01 |
 | **6c — Bootstrap + decision** | Block bootstrap on passers, portfolio decision gate | ✅ 2026-05-01 (verdict: NONE) |
-| 6d — Widen search | Add `momentum_long+stop`, `donchian_bo+stop`, `alpha_composite+stop`, mean-reversion +stop | 🔄 Next |
-| 5 — Forward Testing | Paper trading, 30-day run | ⏸ Blocked on ≥ 3 uncorrelated passers clearing BOTH OFR + bootstrap |
-| 7 — Live Deployment | Real capital, broker integration | 🔜 Planned |
+| **6d — Widening sweep** | `momentum_long+stop`, `donchian_bo+stop`, `alpha_composite+stop`, `bb_reversion+stop` | ✅ 2026-05-02 (verdict: NONE) |
+| **6e — Cross-timeframe (1wk)** | Same 8 strategies, weekly bars, 17-symbol universe | ✅ 2026-05-02 (verdict: NONE) |
+| **6f — Pair spreads** | `zscore_reversion+stop`, `bb_reversion+stop` on 5 sector pairs | ✅ 2026-05-02 (verdict: NONE) |
+| **6g — Vol-targeting overlay** | `+stop+vol` wrapper, re-bootstrap 9 fragile candidates | ✅ 2026-05-02 (verdict: NONE) |
+| **6h — Extended history (10-yr)** | Re-optimize 1d candidates on 2016–2026 daily | ✅ 2026-05-02 (verdict: NONE) |
+| **6 — Architectural conclusion** | Single-asset 1d/1wk universe falsified across all levers | 🔚 **2026-05-02 — see lessons.md #34** |
+| 5 — Forward Testing | Paper trading, 30-day run | ⛔ **Not viable on current architecture.** Requires pivot to multi-asset / cross-sectional engine (Phase 8) |
+| 8 — Cross-sectional engine *(proposed)* | Multi-symbol simultaneous orders, rank-based long/short | 🔜 Pending decision |
+| 7 — Live Deployment | Real capital, broker integration | ⏸ Indefinitely blocked |
 
-### Gate 1 Scoreboard (as of 2026-05-01, post-sweep)
+### Gate 1 Scoreboard (historical record — see lessons.md #34 for the architectural conclusion)
 
-Strategies that have cleared **strict Gate 1 + Gate 2** (Sharpe > 1.2, MaxDD < 25%, ≥ 30 trades, positive return; OFR ≥ 0.70):
+> **⚠ Falsification note (2026-05-02):** the strategies below are preserved as the institutional record of what passed *strict Gate 1 + Gate 2 on 5-yr daily data*, not as recommendations. **All candidates that reached the bootstrap stage came back FRAGILE.** The 10-yr re-optimization (lessons #34) further showed that the 5-yr Sharpes were inflated 30–50% by post-2022 macro-arc fitting — `cci_trend+stop` NVDA's optimal Sharpe on 10-yr daily data is **0.81**, not 1.39. The Gate 1 / Gate 2 framework is sound; the single-asset architecture cannot pass the full pipeline on this universe.
 
-| # | Strategy | Symbol | Sharpe | CAGR | MaxDD | Trades | OFR | Sector |
-|---|----------|--------|--------|------|-------|--------|------|--------|
-| 1 | `cci_trend+stop` (entry=75, exit=50, vol=0.8) | NVDA | **1.39** | 41.7% | 21.4% | 33 | **0.82** | Semiconductors |
+**Strict Gate 1 + Gate 2** (5-yr 1d, Sharpe > 1.2, MaxDD < 25%, ≥ 30 trades, OFR ≥ 0.70):
 
-Strategies that clear **relaxed Gate 1 + strict Gate 2** (Sharpe ≥ 1.0, ≥ 15 trades; OFR ≥ 0.70). See `tasks/lessons.md` #31 for the rationale and when this relaxation is appropriate.
+| # | Strategy | Symbol | 5-yr Sharpe | 10-yr Sharpe | OFR | Bootstrap ratio | Verdict |
+|---|----------|--------|------:|------:|------:|------:|---|
+| 1 | `cci_trend+stop` (entry=75, exit=50, vol=0.8) | NVDA | 1.39 | **0.81** | 0.82 | **0.07** (5-yr) / **0.52** (10-yr) | FRAGILE |
 
-| # | Strategy | Symbol | Sharpe | CAGR | MaxDD | Trades | OFR | Sector |
-|---|----------|--------|--------|------|-------|--------|------|--------|
-| 1 | `cci_trend+stop` (entry=75, exit=50, vol=0.8) | NVDA | 1.39 | 41.7% | 21.4% | 33 | 0.82 | Semiconductors |
-| 2 | `rsi_vwap+stop` (vwap=12, rsi=10, os=35, ob=60) | V | 1.10 | 7.2% | 5.1% | 22 | **1.04** | Payments |
+**Relaxed Gate 1 + strict Gate 2** (Sharpe ≥ 1.0, ≥ 15 trades, OFR ≥ 0.70):
 
-**Sweep summary (2026-04-30 → 05-01):** 68 (strategy, symbol) runs across `cci_trend+stop`, `hull_ma_crossover+stop`, `keltner_breakout+stop`, `rsi_vwap+stop` on 17 symbols, 9,452 total backtests in 8,437 s (2 h 20 m) wall-clock. The strict run produced 1 passer (NVDA) — exact reproduction of the lessons #27 baseline. The relaxed analysis (lessons #31) surfaces a second passer in a different sector (V).
+| # | Strategy | Symbol | 5-yr Sharpe | OFR | Bootstrap ratio | Verdict |
+|---|----------|--------|------:|------:|------:|---|
+| 2 | `rsi_vwap+stop` (vwap=12, rsi=10, os=35, ob=60) | V | 1.10 | 1.04 | 0.37 | FRAGILE |
+| 3 | `bb_reversion+stop` (period=20, std=2.0) | NVDA | 1.17 | 0.93 | -0.39 | FRAGILE |
 
-**⚠ Bootstrap follow-up (2026-05-01):** Both passers came back **FRAGILE** under block bootstrap (n=200). NVDA cci_trend+stop: ratio=0.07 (sim median 0.10 vs original 1.39). V rsi_vwap+stop: ratio=0.37 (sim median 0.41 vs original 1.10). **Strong OFR + weak bootstrap = path-dependent edge** — see lessons #33. Portfolio decision verdict: `NONE`. No defensible paper-trading composition; widen search per `tasks/todo.md` step 1.
+**Session summary (2026-04-30 → 05-02):** 4 walk-forward sweeps (top-4 1d, widening 1d, weekly 1wk, pair spreads 1d) covering 230 (strategy, symbol) runs and ~28,000 backtests; 3 bootstrap rounds across 12 unique candidates with vol-targeting wrapper retrofit; final 10-yr history extension on the 3 strongest candidates. **Final verdict: NONE.** The architecture has been systematically falsified — see `tasks/lessons.md` #34 for the full reasoning.
 
 The 2021–2026 period embeds a 2022 bear market (NVDA –65%, broad tech –30%+) that eliminates most strategies through the 20% drawdown circuit breaker or insufficient trade count. Single-passer (or even 2-passer) concentration is **not** a paper-tradable portfolio — lessons #27 sets the bar at ≥ 3 uncorrelated ROBUST passers across sectors. Next steps: bootstrap the relaxed set, then either (a) widen the strategy search to `momentum_long+stop`, `donchian_bo+stop`, `alpha_composite+stop` or (b) extend history to 7–10 yr daily for more walk-forward folds. See `tasks/todo.md`.
 
