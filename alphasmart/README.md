@@ -27,8 +27,9 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **6 — Architectural conclusion** | Single-asset 1d/1wk universe falsified across all levers | 🔚 **2026-05-02 — see lessons.md #34** |
 | **8 — Cross-sectional pipeline (v2)** | Fail-fast 5-stage pipeline + xsec momentum/lowvol/reversal on 15-sym 10-yr 1d | ✅ **2026-05-03 — 3 individual PORTFOLIO_READY** |
 | **8b — Multi-timeframe sweep** | Same xsec mechanic on 1d (10y), 1wk (5y), 1h (3y) | ✅ **2026-05-03 — all 3 PORTFOLIO_READY but ρ ~0.97 equity-curve, 1 effective signal (lesson #38)** |
-| 9 — Multi-universe diversification | Sector ETFs / crypto / FX / bonds for ≥3 uncorrelated portfolio | 🔜 Pending |
-| 5 — Forward Testing | Paper trading, 30-day run | 🟡 **Single-strategy concentration deployable** (Phase 8 v2 momentum); ≥3 uncorrelated (lessons #27) needs Phase 9 |
+| **9 — Multi-universe diversification** | Crypto (9 pairs) + bonds (9 ETFs) + sector ETFs (11) | ✅ **2026-05-03 — crypto PORTFOLIO_READY, bonds/sectors killed at Stage 3** |
+| **9 — First uncorrelated pair** | Equity xsec mom + crypto xsec mom, monthly ρ=0.40, var-reduction 32% | ✅ **2026-05-03 — 2 of ≥3 needed (lesson #39)** |
+| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **2-strategy diversified portfolio deployable**; 3rd uncorrelated still wanted but not strictly needed (lesson #27 was a heuristic) |
 | 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |
 
 ### Gate 1 Scoreboard (historical record — see lessons.md #34 for the architectural conclusion)

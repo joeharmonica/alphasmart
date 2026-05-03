@@ -475,3 +475,26 @@ Equity-curve correlation: 0.97–0.99 across all pairs. Greedy uncorrelated sele
 **The cross-timeframe replication is a strong validation signal, not a diversification signal.** Three timeframes all clearing the bootstrap on the same edge is empirical confirmation that the underlying momentum factor is real (not a quirk of one sampling rate). It is not three independent strategies.
 
 **Rule:** when computing the lesson #27 ≥3-uncorrelated tally, **count by (mechanic × universe), not by (mechanic × timeframe).** Cross-timeframe results from the same universe contribute 1 strategy to the diversity count regardless of how many sampling rates pass. To unlock further diversification, fetch a structurally different universe (commodity / FX / fixed-income / sector-ETF / international) and re-run the pipeline there.
+
+---
+
+## 39. Multi-Asset Pivot Confirmed — Crypto + Equity = First Uncorrelated PORTFOLIO_READY Pair
+
+**Result (2026-05-03):** Same xsec momentum mechanic on the 9-crypto universe (BTC/ETH/SOL/BNB/XRP/ADA/AVAX/DOGE/LINK via yfinance USD pairs) cleared the full 5-stage pipeline as `PORTFOLIO_READY`:
+- Sharpe 1.091, CAGR 25.3%, MaxDD 29.8%
+- OFR 2.494 (very strong), bootstrap ratio 0.816
+- Best params: 30-day lookback, top-2, weekly rebalance — appropriately short for crypto's faster cycles
+- Vol-target overlay tuned for the asset class: target vol 20% (vs 15% for equities), PERIODS_PER_YEAR=365 (7-day market)
+
+**Cross-universe correlation with the equity xsec momentum strategy:**
+- Monthly-return ρ = **0.401** ← UNCORRELATED at the lesson #32 threshold (|ρ| < 0.5)
+- Equity-curve ρ = 0.95 (both are net positive growth strategies, so curves trend together — the *wrong* measure here; monthly returns are the right one)
+- Equal-weight ensemble: variance is **32% lower** than the average single strategy
+
+This is the project's **first genuinely uncorrelated pair of PORTFOLIO_READY strategies**. Lessons #36/#38's prediction is empirically confirmed — cross-universe is the binding lever for portfolio diversification, not cross-timeframe or cross-mechanic within one universe.
+
+**Bonds (Phase 9 alongside crypto):** TLT/IEF/SHY/LQD/HYG/AGG/BND/TIP/MUB on 1d/10y. Pipeline cleared Stage 1 (Sharpe 0.40) and Stage 2 (bootstrap ratio 1.193 — extremely robust mechanic) but **killed at Stage 3 — best Sharpe 0.704 < 1.0**. Bonds have a real path-independent edge for momentum but the absolute magnitude is too modest to clear strict Gate 1. Same pattern as sector ETFs.
+
+**Implication:** the bottleneck for the third uncorrelated strategy isn't bootstrap robustness or path-dependence — those are solved by the multi-asset pivot. It's **absolute Sharpe magnitude**: low-volatility asset classes (bonds) and low-dispersion universes (broad sector ETFs) produce real but modest edges that don't clear our 1.0 threshold even when bootstrap-perfect.
+
+**Rule:** for the lesson #27 ≥3-uncorrelated bar, focus on universes with **structural dispersion** (cross-sectional volatility / variance of returns across constituents). Mega-cap equities and crypto both have high dispersion — winners outperform losers by 50-200% annualised, leaving room for momentum to extract a strong signal. Bonds and broad sector ETFs have ~10-20% dispersion — even a perfect mechanic finds only modest edges. Next universes to try: **FX (currency-pair vols range 5-15%, high dispersion)**, **commodities (energy / metals / agriculture, high dispersion)**, **international equities (regional baskets, EM has high dispersion)**.

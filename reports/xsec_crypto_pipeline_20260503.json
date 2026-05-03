@@ -1,0 +1,175 @@
+{
+  "generated_utc": "2026-05-03T01:09:26.361024+00:00",
+  "variant": "xsec_momentum_crypto_9pairs",
+  "universe": [
+    "BTC-USD",
+    "ETH-USD",
+    "SOL-USD",
+    "BNB-USD",
+    "XRP-USD",
+    "ADA-USD",
+    "AVAX-USD",
+    "DOGE-USD",
+    "LINK-USD"
+  ],
+  "default_params": {
+    "lookback_days": 90,
+    "skip_days": 0,
+    "top_k": 3,
+    "rebal_days": 14
+  },
+  "grid": {
+    "lookback_days": [
+      30,
+      60,
+      90,
+      180
+    ],
+    "skip_days": [
+      0,
+      7
+    ],
+    "top_k": [
+      2,
+      3,
+      4
+    ],
+    "rebal_days": [
+      7,
+      14,
+      30
+    ]
+  },
+  "stages": {
+    "1_smoke": {
+      "params": {
+        "lookback_days": 90,
+        "skip_days": 0,
+        "top_k": 3,
+        "rebal_days": 14
+      },
+      "metrics": {
+        "sharpe": 0.9053690465605874,
+        "cagr": 0.19904430164317422,
+        "max_drawdown": 0.35113977268077756,
+        "trade_count": 124
+      },
+      "kill_pass": true
+    },
+    "2_fast_bootstrap": {
+      "sim_p25": 0.6344640612517007,
+      "sim_p50": 0.8905759828389206,
+      "sim_p75": 1.3202242626082714,
+      "ratio": 0.8159980188438276
+    },
+    "3_grid_top5": [
+      {
+        "params": {
+          "lookback_days": 30,
+          "skip_days": 0,
+          "top_k": 2,
+          "rebal_days": 7
+        },
+        "sharpe": 1.0913947856157311,
+        "cagr": 0.2530197417564355,
+        "max_drawdown": 0.29841193463198856,
+        "trade_count": 257
+      },
+      {
+        "params": {
+          "lookback_days": 60,
+          "skip_days": 0,
+          "top_k": 2,
+          "rebal_days": 7
+        },
+        "sharpe": 1.0502461293931626,
+        "cagr": 0.25330601394693586,
+        "max_drawdown": 0.31215730838994715,
+        "trade_count": 253
+      },
+      {
+        "params": {
+          "lookback_days": 60,
+          "skip_days": 0,
+          "top_k": 3,
+          "rebal_days": 7
+        },
+        "sharpe": 1.033971357097786,
+        "cagr": 0.24093125784879033,
+        "max_drawdown": 0.3308513075473878,
+        "trade_count": 253
+      },
+      {
+        "params": {
+          "lookback_days": 30,
+          "skip_days": 0,
+          "top_k": 3,
+          "rebal_days": 7
+        },
+        "sharpe": 1.0164240165326601,
+        "cagr": 0.2260150208651841,
+        "max_drawdown": 0.2927221883285833,
+        "trade_count": 257
+      },
+      {
+        "params": {
+          "lookback_days": 90,
+          "skip_days": 0,
+          "top_k": 2,
+          "rebal_days": 14
+        },
+        "sharpe": 1.0084797242426267,
+        "cagr": 0.21985410122261118,
+        "max_drawdown": 0.3936322942030228,
+        "trade_count": 124
+      }
+    ],
+    "3_grid_best": {
+      "params": {
+        "lookback_days": 30,
+        "skip_days": 0,
+        "top_k": 2,
+        "rebal_days": 7
+      },
+      "sharpe": 1.0913947856157311,
+      "cagr": 0.2530197417564355,
+      "max_drawdown": 0.29841193463198856,
+      "trade_count": 257
+    },
+    "3b_walkforward": {
+      "folds": [
+        {
+          "is_sharpe": 0.8383662651229901,
+          "oos_sharpe": 2.4235588979548353
+        },
+        {
+          "is_sharpe": 0.27705937795772595,
+          "oos_sharpe": 2.1415320116152943
+        },
+        {
+          "is_sharpe": 1.463277714253182,
+          "oos_sharpe": 1.2079662221721756
+        },
+        {
+          "is_sharpe": 1.5882564221106297,
+          "oos_sharpe": 1.6078275639534318
+        },
+        {
+          "is_sharpe": 1.6780444911364607,
+          "oos_sharpe": 0.0216224581600541
+        }
+      ],
+      "ofr": 2.4942091801527506,
+      "gate2_pass": true
+    },
+    "4_confirm_bootstrap": {
+      "sim_p5": 0.11041257124481774,
+      "sim_p25": 0.6344640612517007,
+      "sim_p50": 0.8905759828389206,
+      "sim_p75": 1.3202242626082714,
+      "sim_p95": 1.7321437597070501,
+      "ratio": 0.8159980188438276,
+      "verdict": "ROBUST"
+    }
+  }
+}
