@@ -4,7 +4,7 @@
 
 A full-stack algorithmic trading platform: strategy research → backtesting → optimization → bootstrapping simulation → forward testing → live deployment, with an LLM analytical copilot and institutional-grade risk controls.
 
-> **🔚 Architectural status (2026-05-02):** the single-asset, 17-symbol, 5–10-yr daily/weekly long-only backtest framework has been *systematically falsified* across all available levers (mechanic diversity, cross-timeframe replication, pair spreads, vol-targeting, extended history). The robustness pipeline correctly rejected every candidate — a real and unusual result. Paper trading is **not viable on this architecture**. See [`tasks/lessons.md` #34](tasks/lessons.md) for the full reasoning. Phase 8 (cross-sectional / multi-asset engine) is the proposed pivot.
+> **🚀 Status update (2026-05-03):** Phase 8 (cross-sectional pivot) executed. Cross-sectional 6-month momentum on a 15-symbol mega-cap universe with vol-targeting overlay, optimized on 10-yr daily data, **cleared all 5 stages of the fail-fast pipeline as `PORTFOLIO_READY`** — Sharpe 1.503, MaxDD 19.6%, OFR 1.552, bootstrap ratio 0.820. Two further mechanics (cross-sectional low-vol and short-term reversal) also produced individual `PORTFOLIO_READY` verdicts. This is the project's first deployable signal. Lessons #34 architectural falsification was correct; lessons #35-37 capture how the cross-sectional pivot worked and what the new binding constraint is (universe homogeneity / inter-strategy correlation).
 
 ---
 
@@ -25,9 +25,11 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **6g — Vol-targeting overlay** | `+stop+vol` wrapper, re-bootstrap 9 fragile candidates | ✅ 2026-05-02 (verdict: NONE) |
 | **6h — Extended history (10-yr)** | Re-optimize 1d candidates on 2016–2026 daily | ✅ 2026-05-02 (verdict: NONE) |
 | **6 — Architectural conclusion** | Single-asset 1d/1wk universe falsified across all levers | 🔚 **2026-05-02 — see lessons.md #34** |
-| 5 — Forward Testing | Paper trading, 30-day run | ⛔ **Not viable on current architecture.** Requires pivot to multi-asset / cross-sectional engine (Phase 8) |
-| 8 — Cross-sectional engine *(proposed)* | Multi-symbol simultaneous orders, rank-based long/short | 🔜 Pending decision |
-| 7 — Live Deployment | Real capital, broker integration | ⏸ Indefinitely blocked |
+| **8 — Cross-sectional pipeline (v2)** | Fail-fast 5-stage pipeline + xsec momentum/lowvol/reversal on 15-sym 10-yr 1d | ✅ **2026-05-03 — 3 individual PORTFOLIO_READY** |
+| 8b — Multi-timeframe sweep | Same xsec mechanic on 1wk and 1h universes | 🔄 In progress |
+| 9 — Multi-universe diversification | Sector ETFs / crypto / FX / bonds for ≥3 uncorrelated portfolio | 🔜 Pending |
+| 5 — Forward Testing | Paper trading, 30-day run | 🟡 **Single-strategy concentration deployable** (Phase 8 v2 momentum); ≥3 uncorrelated (lessons #27) needs Phase 9 |
+| 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |
 
 ### Gate 1 Scoreboard (historical record — see lessons.md #34 for the architectural conclusion)
 

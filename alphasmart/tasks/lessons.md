@@ -383,3 +383,62 @@ This is the first (strategy, symbol) combination in the project to clear both ga
 **Rule:** When every available lever within an architecture has been falsified, *the architecture is the result*. Don't keep searching for the missing strategy choice — name the conclusion. The single-asset, 5–10-yr daily/weekly long-only backtest framework is **methodologically incapable of producing a bootstrap-robust paper-tradable edge on this 17-symbol universe**. The honest path forward is to (a) treat the framework as a research testbed that has correctly *rejected* every strategy in its scope (a real and rare result), and (b) only invest further engineering effort if pivoting to a structurally different architecture (cross-sectional / multi-asset) where the edge isn't path-dependent by construction.
 
 **What the artifact actually is, after this session:** a methodologically rigorous robustness pipeline (walk-forward + OFR + block bootstrap + portfolio decision gate + cross-timeframe replication test + vol-targeting overlay) that *successfully falsified* every candidate it was given. That is unusual and useful — most retail backtest tooling will happily declare a 5-yr Sharpe-1.4 strategy tradable; this pipeline correctly refused.
+
+---
+
+## 35. Universe Alignment Is Gated By The Shortest-History Symbol
+
+**Symptom:** v1 of the cross-sectional momentum pipeline (run_xsec_pipeline.py) was killed at Stage 1 with MaxDD=49% even though we'd just fetched 10 yr of daily data for 17 symbols. The strategy looked path-fitted to 2022→2024 — exactly the trap lessons #34 said the architecture pivot would solve.
+
+**Root cause:** `closes.dropna()` returned only 1,403 bars (~5.5 yr) because PLTR (IPO 2020-09-30) and CRWD (IPO 2019-06-12) only had partial overlap with the older symbols. The intersection of "all 17 have data" was the IPO date of the most-recent newcomer, not the average ticker's history. So we had 10 yr of data per symbol but a 5.5 yr cross-section — and the cross-section is what the strategy actually uses.
+
+**Fix:** v2 dropped PLTR + CRWD from the universe (15 symbols), recovering the full 10 yr aligned window (2,515 bars). Stage 1 immediately passed (MaxDD 22.5%) and the full pipeline cleared with `PORTFOLIO_READY` (Sharpe 1.503, OFR 1.552, bootstrap ratio 0.820).
+
+**Rule:** Before any cross-sectional sweep, print **both** the per-symbol bar count and the aligned cross-section bar count. If aligned-count < 0.7 × per-symbol-count, the cross-section is gated by an outlier and the universe should be trimmed to recover the full aligned window. The single newcomer's IPO date can poison an otherwise fully-fetched universe.
+
+---
+
+## 36. Long-Only Strategies On A Homogeneous Universe Inherit ~0.7 Inter-Strategy Correlation From Market Beta
+
+**Symptom:** After 3 cross-sectional strategies (12-1 momentum, low-vol BAB, short-term reversal) all cleared the full 5-stage pipeline as `PORTFOLIO_READY`, the pairwise daily-return correlation matrix was:
+
+| | momentum | lowvol | reversal |
+|---|---:|---:|---:|
+| momentum | — | 0.78 | 0.70 |
+| lowvol | 0.78 | — | 0.78 |
+| reversal | 0.70 | 0.78 | — |
+
+Equity-curve correlation: 0.99 across all pairs. Greedy uncorrelated selection at |ρ|<0.5 admitted only 1 of 3.
+
+**Root cause:** all three strategies trade the same 15-symbol tech mega-cap universe with long-only top-K=5. The underlying assets (NVDA, AAPL, MSFT, META, GOOG, AMZN, etc.) are ρ ≈ 0.6-0.7 with each other due to shared sector / market-cap / "Mag 7" factor exposure. With only 15 names and top-K=5, even strategies that pick *different* baskets overlap by ≥ 1 name on most days, and the systematic correlation between assets in the universe sets a **floor on inter-strategy correlation**. The "different mechanics" don't matter if they all express through the same homogeneous portfolio.
+
+**Implication for lesson #27:** "≥ 3 uncorrelated ROBUST passers across ≥ 2 sectors" cannot be satisfied within a single homogeneous universe regardless of mechanic diversity. The lesson #27 floor isn't just about the strategies; it's about the *universes* the strategies trade. If all candidates share one universe, correlation will be high.
+
+**Rule:** When evaluating cross-sectional candidates for portfolio construction (lesson #27 ≥3-uncorrelated rule), require that candidates either (a) span structurally different universes (e.g. tech mega-caps vs sector ETFs vs bonds vs FX), or (b) use market-neutral L/S formulations that cancel systematic exposure. Pairwise daily-return correlation ≥ 0.5 between candidates in the same universe is the *expected* outcome, not a sign of strategy similarity.
+
+---
+
+## 37. L/S Variants Reveal That Long-Only "Factor Edges" Can Be Artifacts Of One-Sided Market Exposure
+
+**Symptom:** Three long-only cross-sectional strategies cleared the full pipeline as ROBUST (Sharpes 1.08-1.50). When the same mechanics were re-tested as market-neutral long-short (long top-K, short bottom-K, equal dollar weight):
+
+| Strategy | LO Sharpe | LS Sharpe | LS MaxDD |
+|---|---:|---:|---:|
+| momentum | +1.503 | +0.941 | 20.5% |
+| **low-vol** | **+1.264** | **-0.861** | **79.7%** |
+| **reversal** | **+1.083** | **-0.676** | **70.9%** |
+
+Low-vol and reversal **flipped to severely negative** in L/S form.
+
+**Root cause:** the 2018-2026 tech mega-cap universe had a positive beta-return relationship — the *most* volatile assets (NVDA, TSLA) were also the *highest* returners (AI rally). The long-only versions of low-vol and reversal accidentally captured **half** of this — they avoided the high-vol/recent-winner tech ripper effect — but in L/S, the short leg shorts those very names, and the rip then ruins what the long leg captured.
+
+So:
+- Long-only low-vol "edge" was ~50% true low-vol BAB factor + 50% structural long-only bias against the most volatile names. The first half is real; the second half is a no-edge artifact.
+- Long-only reversal "edge" was ~50% mean reversion in losers + 50% missing the AI-rally winners. Same artifact pattern.
+- Long-only momentum was ~80% real momentum factor (it survives in L/S form) + 20% market beta.
+
+**The L/S Sharpe is the cleaner factor measurement.** Long-only Sharpe inflates real factor edges by 2x or more on universes with strong beta-return correlations.
+
+**Rule:** When cross-sectional long-only strategies look strong (Sharpe > 1.0) on a homogeneous universe with strong directional beta exposure, **always re-test in L/S form**. If L/S Sharpe drops > 50% or flips negative, the long-only result is half-real-factor / half-beta artifact and should not be promoted to paper-trading without further isolation. The L/S residual is the genuine portion of the edge; the long-only excess is structural beta exposure that was monetised in the specific historical window but isn't a factor signal.
+
+**For portfolio construction:** prefer L/S Sharpe as the headline metric for cross-sectional candidates, even if absolute level is lower (0.7-1.0 typical for L/S vs 1.2-1.5 for LO). L/S edges are more transferable across universes and more robust to regime changes (the 2023-2024 tech rip wasn't predictable; the L/S Sharpe doesn't depend on it).
