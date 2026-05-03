@@ -1,0 +1,175 @@
+{
+  "generated_utc": "2026-05-03T00:26:11.035573+00:00",
+  "variant": "xsec_momentum_1wk_15sym",
+  "universe": [
+    "AAPL",
+    "AMZN",
+    "ASML",
+    "AVGO",
+    "GOOG",
+    "MA",
+    "META",
+    "MSFT",
+    "NOW",
+    "NVDA",
+    "NVO",
+    "QQQ",
+    "SPY",
+    "TSLA",
+    "V"
+  ],
+  "default_params": {
+    "lookback_weeks": 25,
+    "skip_weeks": 0,
+    "top_k": 5,
+    "rebal_weeks": 4
+  },
+  "grid": {
+    "lookback_weeks": [
+      13,
+      25,
+      39
+    ],
+    "skip_weeks": [
+      0,
+      4
+    ],
+    "top_k": [
+      2,
+      3,
+      5
+    ],
+    "rebal_weeks": [
+      4,
+      13
+    ]
+  },
+  "stages": {
+    "1_smoke": {
+      "params": {
+        "lookback_weeks": 25,
+        "skip_weeks": 0,
+        "top_k": 5,
+        "rebal_weeks": 4
+      },
+      "metrics": {
+        "sharpe": 1.0412779377482921,
+        "cagr": 0.17575588917129603,
+        "max_drawdown": 0.18961450657097823,
+        "trade_count": 58
+      },
+      "kill_pass": true
+    },
+    "2_fast_bootstrap": {
+      "sim_p25": 0.9564665941292834,
+      "sim_p50": 1.2989908999966813,
+      "sim_p75": 1.5678107167046673,
+      "ratio": 0.758668136650941
+    },
+    "3_grid_top5": [
+      {
+        "params": {
+          "lookback_weeks": 13,
+          "skip_weeks": 0,
+          "top_k": 2,
+          "rebal_weeks": 4
+        },
+        "sharpe": 1.7121990989775016,
+        "cagr": 0.315971473716421,
+        "max_drawdown": 0.187796144794658,
+        "trade_count": 61
+      },
+      {
+        "params": {
+          "lookback_weeks": 13,
+          "skip_weeks": 0,
+          "top_k": 3,
+          "rebal_weeks": 4
+        },
+        "sharpe": 1.469303451161246,
+        "cagr": 0.26061464629166275,
+        "max_drawdown": 0.19484322336992332,
+        "trade_count": 61
+      },
+      {
+        "params": {
+          "lookback_weeks": 25,
+          "skip_weeks": 0,
+          "top_k": 2,
+          "rebal_weeks": 4
+        },
+        "sharpe": 1.2476385793564202,
+        "cagr": 0.25362852643268896,
+        "max_drawdown": 0.19774651013916844,
+        "trade_count": 58
+      },
+      {
+        "params": {
+          "lookback_weeks": 13,
+          "skip_weeks": 0,
+          "top_k": 2,
+          "rebal_weeks": 13
+        },
+        "sharpe": 1.2398057461739045,
+        "cagr": 0.25165432012330613,
+        "max_drawdown": 0.21629513012632173,
+        "trade_count": 19
+      },
+      {
+        "params": {
+          "lookback_weeks": 13,
+          "skip_weeks": 0,
+          "top_k": 5,
+          "rebal_weeks": 4
+        },
+        "sharpe": 1.2174536605585047,
+        "cagr": 0.20847244001294074,
+        "max_drawdown": 0.2022800065039687,
+        "trade_count": 61
+      }
+    ],
+    "3_grid_best": {
+      "params": {
+        "lookback_weeks": 13,
+        "skip_weeks": 0,
+        "top_k": 2,
+        "rebal_weeks": 4
+      },
+      "sharpe": 1.7121990989775016,
+      "cagr": 0.315971473716421,
+      "max_drawdown": 0.187796144794658,
+      "trade_count": 61
+    },
+    "3b_walkforward": {
+      "folds": [
+        {
+          "is_sharpe": 1.5960010016869732,
+          "oos_sharpe": 0.4553232746992922
+        },
+        {
+          "is_sharpe": 0.26399555343877346,
+          "oos_sharpe": 1.4329122398845162
+        },
+        {
+          "is_sharpe": 1.8061052301137397,
+          "oos_sharpe": 0.5657285621486132
+        },
+        {
+          "is_sharpe": 1.8067759935474679,
+          "oos_sharpe": -0.46808750375968106
+        }
+      ],
+      "ofr": 1.5065776554455554,
+      "gate2_pass": true
+    },
+    "4_confirm_bootstrap": {
+      "sim_p5": 0.47125196013823883,
+      "sim_p25": 0.9564665941292834,
+      "sim_p50": 1.2989908999966813,
+      "sim_p75": 1.5678107167046673,
+      "sim_p95": 1.9573762585602636,
+      "ratio": 0.758668136650941,
+      "verdict": "ROBUST"
+    }
+  }
+}

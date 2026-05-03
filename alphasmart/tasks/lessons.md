@@ -442,3 +442,36 @@ So:
 **Rule:** When cross-sectional long-only strategies look strong (Sharpe > 1.0) on a homogeneous universe with strong directional beta exposure, **always re-test in L/S form**. If L/S Sharpe drops > 50% or flips negative, the long-only result is half-real-factor / half-beta artifact and should not be promoted to paper-trading without further isolation. The L/S residual is the genuine portion of the edge; the long-only excess is structural beta exposure that was monetised in the specific historical window but isn't a factor signal.
 
 **For portfolio construction:** prefer L/S Sharpe as the headline metric for cross-sectional candidates, even if absolute level is lower (0.7-1.0 typical for L/S vs 1.2-1.5 for LO). L/S edges are more transferable across universes and more robust to regime changes (the 2023-2024 tech rip wasn't predictable; the L/S Sharpe doesn't depend on it).
+
+---
+
+## 38. Same Universe + Different Sampling Rate ≠ Independent Signals
+
+**Result:** Cross-sectional momentum (mechanically identical) on the 15-symbol mega-cap universe was tested at three sampling rates with timeframe-appropriate parameters (1d: 6mo lookback, 1wk: 13wk lookback, 1h: 819-bar lookback). All three cleared the full 5-stage pipeline as `PORTFOLIO_READY`:
+
+| Timeframe | Aligned bars | Sharpe | OFR | Bootstrap ratio | Verdict |
+|---|---:|---:|---:|---:|---|
+| 1d (10y) | 2,515 | 1.503 | 1.552 | 0.820 | ROBUST |
+| 1wk (5y) | 256 | 1.712 | 1.507 | 0.759 | ROBUST |
+| 1h (3y) | 5,068 | 1.405 | 2.315 | 0.771 | ROBUST |
+
+But on the common 33-month observation window:
+
+|  | 1d | 1wk | 1h |
+|---|---:|---:|---:|
+| 1d | — | 0.688 | 0.797 |
+| 1wk | 0.688 | — | 0.694 |
+| 1h | 0.797 | 0.694 | — |
+
+Equity-curve correlation: 0.97–0.99 across all pairs. Greedy uncorrelated selection at \|ρ\| < 0.5 admits only 1.
+
+**Diagnosis:** all three are picking the same baskets at slightly different cadences. Hourly-momentum's top-5 by 819-bar trailing return ≈ daily-momentum's top-5 by 126-bar trailing return ≈ weekly-momentum's top-2 by 13-week trailing return. The signal is "which assets have outperformed recently" and it doesn't matter if "recently" is measured in bars, days, or weeks — the *answer* is largely the same.
+
+**Implication for lesson #27 (≥3 uncorrelated, ≥2 sectors):**
+- Same mechanic + same universe + different timeframes → 1 signal, not 3.
+- Different mechanics + same universe + same timeframe → 1 signal, not 3 (lesson #36).
+- The only way to get genuinely uncorrelated cross-sectional candidates is **different universes**: tech mega-caps vs sector ETFs vs bonds vs FX vs crypto.
+
+**The cross-timeframe replication is a strong validation signal, not a diversification signal.** Three timeframes all clearing the bootstrap on the same edge is empirical confirmation that the underlying momentum factor is real (not a quirk of one sampling rate). It is not three independent strategies.
+
+**Rule:** when computing the lesson #27 ≥3-uncorrelated tally, **count by (mechanic × universe), not by (mechanic × timeframe).** Cross-timeframe results from the same universe contribute 1 strategy to the diversity count regardless of how many sampling rates pass. To unlock further diversification, fetch a structurally different universe (commodity / FX / fixed-income / sector-ETF / international) and re-run the pipeline there.

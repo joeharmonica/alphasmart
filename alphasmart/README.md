@@ -26,7 +26,7 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **6h — Extended history (10-yr)** | Re-optimize 1d candidates on 2016–2026 daily | ✅ 2026-05-02 (verdict: NONE) |
 | **6 — Architectural conclusion** | Single-asset 1d/1wk universe falsified across all levers | 🔚 **2026-05-02 — see lessons.md #34** |
 | **8 — Cross-sectional pipeline (v2)** | Fail-fast 5-stage pipeline + xsec momentum/lowvol/reversal on 15-sym 10-yr 1d | ✅ **2026-05-03 — 3 individual PORTFOLIO_READY** |
-| 8b — Multi-timeframe sweep | Same xsec mechanic on 1wk and 1h universes | 🔄 In progress |
+| **8b — Multi-timeframe sweep** | Same xsec mechanic on 1d (10y), 1wk (5y), 1h (3y) | ✅ **2026-05-03 — all 3 PORTFOLIO_READY but ρ ~0.97 equity-curve, 1 effective signal (lesson #38)** |
 | 9 — Multi-universe diversification | Sector ETFs / crypto / FX / bonds for ≥3 uncorrelated portfolio | 🔜 Pending |
 | 5 — Forward Testing | Paper trading, 30-day run | 🟡 **Single-strategy concentration deployable** (Phase 8 v2 momentum); ≥3 uncorrelated (lessons #27) needs Phase 9 |
 | 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |

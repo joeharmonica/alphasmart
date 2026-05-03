@@ -1,0 +1,187 @@
+{
+  "generated_utc": "2026-05-03T00:32:05.190973+00:00",
+  "variant": "xsec_momentum_1h_15sym",
+  "universe": [
+    "AAPL",
+    "AMZN",
+    "ASML",
+    "AVGO",
+    "GOOG",
+    "MA",
+    "META",
+    "MSFT",
+    "NOW",
+    "NVDA",
+    "NVO",
+    "QQQ",
+    "SPY",
+    "TSLA",
+    "V"
+  ],
+  "default_params": {
+    "lookback_bars": 819,
+    "skip_bars": 0,
+    "top_k": 5,
+    "rebal_bars": 137
+  },
+  "grid": {
+    "lookback_bars": [
+      410,
+      819,
+      1638
+    ],
+    "skip_bars": [
+      0,
+      137
+    ],
+    "top_k": [
+      2,
+      3,
+      5
+    ],
+    "rebal_bars": [
+      137,
+      410
+    ]
+  },
+  "stages": {
+    "1_smoke": {
+      "params": {
+        "lookback_bars": 819,
+        "skip_bars": 0,
+        "top_k": 5,
+        "rebal_bars": 137
+      },
+      "metrics": {
+        "sharpe": 1.40522624400775,
+        "cagr": 0.22012136912655245,
+        "max_drawdown": 0.176568120360715,
+        "trade_count": 32
+      },
+      "kill_pass": true
+    },
+    "2_fast_bootstrap": {
+      "sim_p25": 0.6887878368666871,
+      "sim_p50": 1.083665108598558,
+      "sim_p75": 1.5460184089396969,
+      "ratio": 0.7711677128288684
+    },
+    "3_grid_top5": [
+      {
+        "params": {
+          "lookback_bars": 819,
+          "skip_bars": 0,
+          "top_k": 5,
+          "rebal_bars": 137
+        },
+        "sharpe": 1.40522624400775,
+        "cagr": 0.22012136912655245,
+        "max_drawdown": 0.176568120360715,
+        "trade_count": 32
+      },
+      {
+        "params": {
+          "lookback_bars": 410,
+          "skip_bars": 137,
+          "top_k": 5,
+          "rebal_bars": 410
+        },
+        "sharpe": 1.308653275221565,
+        "cagr": 0.20908403459887226,
+        "max_drawdown": 0.1575616648188325,
+        "trade_count": 12
+      },
+      {
+        "params": {
+          "lookback_bars": 410,
+          "skip_bars": 0,
+          "top_k": 5,
+          "rebal_bars": 137
+        },
+        "sharpe": 1.265879949339706,
+        "cagr": 0.20481508780596003,
+        "max_drawdown": 0.1948756396306338,
+        "trade_count": 34
+      },
+      {
+        "params": {
+          "lookback_bars": 410,
+          "skip_bars": 137,
+          "top_k": 5,
+          "rebal_bars": 137
+        },
+        "sharpe": 1.2636792682939002,
+        "cagr": 0.20263943229040704,
+        "max_drawdown": 0.17274389884753405,
+        "trade_count": 33
+      },
+      {
+        "params": {
+          "lookback_bars": 410,
+          "skip_bars": 137,
+          "top_k": 3,
+          "rebal_bars": 137
+        },
+        "sharpe": 1.262346722601968,
+        "cagr": 0.20856075975033117,
+        "max_drawdown": 0.17462334398699397,
+        "trade_count": 33
+      }
+    ],
+    "3_grid_best": {
+      "params": {
+        "lookback_bars": 819,
+        "skip_bars": 0,
+        "top_k": 5,
+        "rebal_bars": 137
+      },
+      "sharpe": 1.40522624400775,
+      "cagr": 0.22012136912655245,
+      "max_drawdown": 0.176568120360715,
+      "trade_count": 32
+    },
+    "3b_walkforward": {
+      "folds": [
+        {
+          "is_sharpe": 1.5797813827944418,
+          "oos_sharpe": 0.0
+        },
+        {
+          "is_sharpe": 0.27937956610591264,
+          "oos_sharpe": 0.0
+        },
+        {
+          "is_sharpe": 1.044787556712662,
+          "oos_sharpe": 0.0
+        },
+        {
+          "is_sharpe": 1.592074815447287,
+          "oos_sharpe": 0.0
+        },
+        {
+          "is_sharpe": -0.3394222842778256,
+          "oos_sharpe": 0.0
+        },
+        {
+          "is_sharpe": -0.2535252323330217,
+          "oos_sharpe": 0.0
+        },
+        {
+          "is_sharpe": 2.1078444723065464,
+          "oos_sharpe": 0.0
+        }
+      ],
+      "ofr": 0.0,
+      "gate2_pass": false
+    },
+    "4_confirm_bootstrap": {
+      "sim_p5": 0.24395818463753402,
+      "sim_p25": 0.6887878368666871,
+      "sim_p50": 1.083665108598558,
+      "sim_p75": 1.5460184089396969,
+      "sim_p95": 2.0415967624678117,
+      "ratio": 0.7711677128288684,
+      "verdict": "ROBUST"
+    }
+  }
+}

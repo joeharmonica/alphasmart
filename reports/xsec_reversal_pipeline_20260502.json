@@ -1,0 +1,219 @@
+{
+  "generated_utc": "2026-05-02T16:00:03.971937+00:00",
+  "variant": "xsec_short_term_reversal",
+  "universe": [
+    "AAPL",
+    "AMZN",
+    "ASML",
+    "AVGO",
+    "GOOG",
+    "MA",
+    "META",
+    "MSFT",
+    "NOW",
+    "NVDA",
+    "NVO",
+    "QQQ",
+    "SPY",
+    "TSLA",
+    "V"
+  ],
+  "default_params": {
+    "lookback_days": 21,
+    "skip_days": 0,
+    "top_k": 3,
+    "rebal_days": 21
+  },
+  "grid": {
+    "lookback_days": [
+      5,
+      10,
+      21,
+      42
+    ],
+    "skip_days": [
+      0
+    ],
+    "top_k": [
+      2,
+      3,
+      5
+    ],
+    "rebal_days": [
+      5,
+      10,
+      21
+    ]
+  },
+  "stages": {
+    "1_smoke": {
+      "params": {
+        "lookback_days": 21,
+        "skip_days": 0,
+        "top_k": 3,
+        "rebal_days": 21
+      },
+      "metrics": {
+        "sharpe": 0.6623034563141107,
+        "cagr": 0.10000255742148534,
+        "max_drawdown": 0.27861824147465775,
+        "trade_count": 119
+      },
+      "kill_pass": true
+    },
+    "2_fast_bootstrap": {
+      "n_sims": 50,
+      "sim_sharpe_p25": 0.6521580712837927,
+      "sim_sharpe_p50": 0.8837963009526284,
+      "sim_sharpe_p75": 1.1677768367791477,
+      "ratio": 1.3344280367660806,
+      "kill_pass": true
+    },
+    "3_grid_top5": [
+      {
+        "params": {
+          "lookback_days": 42,
+          "skip_days": 0,
+          "top_k": 5,
+          "rebal_days": 21
+        },
+        "sharpe": 1.082511571958917,
+        "cagr": 0.178060336917774,
+        "max_drawdown": 0.22140953959527054,
+        "trade_count": 118
+      },
+      {
+        "params": {
+          "lookback_days": 5,
+          "skip_days": 0,
+          "top_k": 5,
+          "rebal_days": 21
+        },
+        "sharpe": 1.079662461994667,
+        "cagr": 0.1774548885516296,
+        "max_drawdown": 0.28412699668745856,
+        "trade_count": 120
+      },
+      {
+        "params": {
+          "lookback_days": 10,
+          "skip_days": 0,
+          "top_k": 5,
+          "rebal_days": 21
+        },
+        "sharpe": 1.0734430551106369,
+        "cagr": 0.17564282598438408,
+        "max_drawdown": 0.21208177651440885,
+        "trade_count": 120
+      },
+      {
+        "params": {
+          "lookback_days": 42,
+          "skip_days": 0,
+          "top_k": 5,
+          "rebal_days": 10
+        },
+        "sharpe": 1.0603763845069996,
+        "cagr": 0.17230440945884884,
+        "max_drawdown": 0.21289825420541275,
+        "trade_count": 248
+      },
+      {
+        "params": {
+          "lookback_days": 10,
+          "skip_days": 0,
+          "top_k": 3,
+          "rebal_days": 21
+        },
+        "sharpe": 1.0413471727581207,
+        "cagr": 0.17067682412010265,
+        "max_drawdown": 0.21656236144064878,
+        "trade_count": 120
+      }
+    ],
+    "3_grid_best": {
+      "params": {
+        "lookback_days": 42,
+        "skip_days": 0,
+        "top_k": 5,
+        "rebal_days": 21
+      },
+      "sharpe": 1.082511571958917,
+      "cagr": 0.178060336917774,
+      "max_drawdown": 0.22140953959527054,
+      "trade_count": 118
+    },
+    "3b_walkforward": {
+      "folds": [
+        {
+          "is_sharpe": 1.8628607199064522,
+          "oos_sharpe": 0.5557969871668449
+        },
+        {
+          "is_sharpe": 2.1312915965633197,
+          "oos_sharpe": 1.2852218216828943
+        },
+        {
+          "is_sharpe": 1.3155709925435262,
+          "oos_sharpe": 0.44736925462688915
+        },
+        {
+          "is_sharpe": 0.7676483930571032,
+          "oos_sharpe": 0.5675544189560014
+        },
+        {
+          "is_sharpe": 0.5955522882547464,
+          "oos_sharpe": 1.810169763630452
+        },
+        {
+          "is_sharpe": 1.0500569947003258,
+          "oos_sharpe": 0.8182804522683496
+        },
+        {
+          "is_sharpe": 1.0579845570886854,
+          "oos_sharpe": -0.23179970082049542
+        },
+        {
+          "is_sharpe": 0.8906450725776776,
+          "oos_sharpe": -1.0503341806778719
+        },
+        {
+          "is_sharpe": 0.8830107079285159,
+          "oos_sharpe": 0.9722761227012251
+        },
+        {
+          "is_sharpe": 0.1284205647297188,
+          "oos_sharpe": 2.6360749791519615
+        },
+        {
+          "is_sharpe": -0.047496829255356754,
+          "oos_sharpe": 1.2095417245754732
+        },
+        {
+          "is_sharpe": 0.20174442674569015,
+          "oos_sharpe": 1.2072271624435953
+        },
+        {
+          "is_sharpe": 1.5510190054571953,
+          "oos_sharpe": 0.2990461531755664
+        },
+        {
+          "is_sharpe": 2.1496096143233006,
+          "oos_sharpe": 0.6759810641903851
+        }
+      ],
+      "ofr": 2.6091333239795835,
+      "gate2_pass": true
+    },
+    "4_confirm_bootstrap": {
+      "n_sims": 200,
+      "sim_sharpe_p5": 0.5325855096720296,
+      "sim_sharpe_p25": 0.7830588739454339,
+      "sim_sharpe_p50": 1.0024228517488878,
+      "sim_sharpe_p75": 1.1907651777980228,
+      "sim_sharpe_p95": 1.420651580077221,
+      "ratio": 0.9260158299600435,
+      "verdict": "ROBUST"
+    }
+  }
+}
