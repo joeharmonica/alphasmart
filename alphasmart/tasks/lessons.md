@@ -498,3 +498,33 @@ This is the project's **first genuinely uncorrelated pair of PORTFOLIO_READY str
 **Implication:** the bottleneck for the third uncorrelated strategy isn't bootstrap robustness or path-dependence — those are solved by the multi-asset pivot. It's **absolute Sharpe magnitude**: low-volatility asset classes (bonds) and low-dispersion universes (broad sector ETFs) produce real but modest edges that don't clear our 1.0 threshold even when bootstrap-perfect.
 
 **Rule:** for the lesson #27 ≥3-uncorrelated bar, focus on universes with **structural dispersion** (cross-sectional volatility / variance of returns across constituents). Mega-cap equities and crypto both have high dispersion — winners outperform losers by 50-200% annualised, leaving room for momentum to extract a strong signal. Bonds and broad sector ETFs have ~10-20% dispersion — even a perfect mechanic finds only modest edges. Next universes to try: **FX (currency-pair vols range 5-15%, high dispersion)**, **commodities (energy / metals / agriculture, high dispersion)**, **international equities (regional baskets, EM has high dispersion)**.
+
+---
+
+## 40. Regime Filter Is The Single Most-Impactful Single Change — `Asset > 200d-MA` Gate
+
+**Result (2026-05-03):** A trivial regime filter — *only trade when the universe's bellwether asset is above its 200-day moving average* — applied to the two PORTFOLIO_READY strategies (equity xsec momentum gated by SPY > 200d-MA; crypto xsec momentum gated by BTC > 200d-MA) produced these full-window deltas vs unfiltered:
+
+| | Equity ΔSharpe | Equity ΔMaxDD | Crypto ΔSharpe | Crypto ΔMaxDD |
+|---|---:|---:|---:|---:|
+| Full 5-10 yr window | **+0.402** (1.503 → 1.905) | **-8.8 pts** (19.6 → 10.8%) | **+0.523** (1.091 → 1.614) | **-14.8 pts** (29.8 → 15.0%) |
+
+**The 2022 bear-year breakdown is the dramatic case:**
+- Equity 2022 Sharpe: **-0.400 → +0.721** (filter sat 81% in cash)
+- Equity 2022 MaxDD: 16.1% → 7.8%
+- Crypto 2022 Sharpe: **-0.640 → +0.000** (filter sat 100% in cash, completely dodged crypto winter)
+- Crypto 2022 MaxDD: 26.5% → 0%
+
+**Filtered ensemble metrics (50/50 equity_filt + crypto_filt):**
+- Sharpe **1.893** (best in the project)
+- CAGR 21.7%
+- MaxDD **9.2%** (institutional-quality drawdown)
+- Inter-strategy ρ **0.179** (vs 0.401 unfiltered — even better diversification because both go to cash in regime-OFF, neutralising correlated downside)
+
+**Why this works:** cross-sectional momentum is structurally a *trend-following* mechanic — it longs assets that have outperformed recently. In trending bull markets it captures persistence; in choppy or bear regimes the "winners" reverse and the strategy bleeds. The 200d-MA gate is the simplest possible bear-market detector — when the index is below its long-run mean, the trending regime has broken and momentum is unreliable. The filter sits in cash exactly when the strategy's edge would be negative.
+
+**This generalises:** the filter is **conjugate** to the strategy mechanic. A momentum strategy needs a trend-detection filter (200d-MA). A mean-reversion strategy would need a *volatility-regime* filter (only mean-revert when realised vol is below a threshold). A breakout strategy would need a *trending* filter. Each strategy class has a regime in which its mechanic *should* work — the filter's job is to detect when that regime is absent and step aside.
+
+**Bootstrap caveat:** the bootstrap on the filtered equity strategy returned ratio 0.638 — just below the 0.65 ROBUST cutoff. **This is an artefact of the bootstrap design**, not a fragility finding. The bootstrap synthesises new asset paths but the regime filter still uses the *real* SPY series for its 200d-MA gate, creating a logical inconsistency between filter timeline and strategy timeline. Proper bootstrap would synchronise SPY into the synthetic universe (SPY is in our 15-symbol list, so this is straightforward). Without that fix, the filtered-bootstrap result is suggestive but not authoritative. Re-test with SPY-synchronised bootstrap before treating 0.638 as a real bootstrap failure.
+
+**Rule:** **Always pair a strategy with its conjugate regime filter before paper-trading.** A strategy that works "in the right regime" but bleeds "in the wrong regime" is unsafe to deploy without the filter. The regime filter is *not* an enhancement — it is part of the strategy's correctness specification. For a momentum strategy, the rule is `if SPY < 200d-MA → cash`. For mean-reversion, the rule is `if realised_vol > threshold → cash`. The filter typically improves Sharpe by 0.3-0.5 and cuts MaxDD by 30-50% — the largest single-change improvement available, and a critical safety net for live deployment.

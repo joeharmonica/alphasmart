@@ -1,0 +1,46 @@
+{
+  "generated_utc": "2026-05-03T01:17:21.731106+00:00",
+  "ma_period": 200,
+  "equity_unfiltered": {
+    "sharpe": 1.503383282821607,
+    "cagr": 0.2579290293954042,
+    "max_drawdown": 0.19555268229135103,
+    "n_active": 2389,
+    "pct_in_market": 0.9499005964214712
+  },
+  "equity_filtered": {
+    "sharpe": 1.9048854329396496,
+    "cagr": 0.2895711374217744,
+    "max_drawdown": 0.10784475553145301,
+    "n_active": 1915,
+    "pct_in_market": 0.7614314115308151
+  },
+  "crypto_unfiltered": {
+    "sharpe": 1.0913947856157311,
+    "cagr": 0.2530197417564355,
+    "max_drawdown": 0.29841193463198856,
+    "n_active": 1796,
+    "pct_in_market": 0.9835706462212487
+  },
+  "crypto_filtered": {
+    "sharpe": 1.6139413208514866,
+    "cagr": 0.2742955657576416,
+    "max_drawdown": 0.15037941826406975,
+    "n_active": 888,
+    "pct_in_market": 0.48630887185104055
+  },
+  "ensemble_filtered": {
+    "sharpe": 1.892846436475294,
+    "cagr": 0.21697509433397233,
+    "max_drawdown": 0.0919556817438939,
+    "n_active": 1011,
+    "pct_in_market": 0.8049363057324841
+  },
+  "ensemble_corr": 0.17947869296135302,
+  "bootstrap_filtered_equity": {
+    "sim_p25": 0.9771201820247951,
+    "sim_p50": 1.2147925260036634,
+    "sim_p75": 1.500932713097583,
+    "ratio": 0.637724718241441
+  }
+}

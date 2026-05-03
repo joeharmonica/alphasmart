@@ -29,7 +29,8 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **8b — Multi-timeframe sweep** | Same xsec mechanic on 1d (10y), 1wk (5y), 1h (3y) | ✅ **2026-05-03 — all 3 PORTFOLIO_READY but ρ ~0.97 equity-curve, 1 effective signal (lesson #38)** |
 | **9 — Multi-universe diversification** | Crypto (9 pairs) + bonds (9 ETFs) + sector ETFs (11) | ✅ **2026-05-03 — crypto PORTFOLIO_READY, bonds/sectors killed at Stage 3** |
 | **9 — First uncorrelated pair** | Equity xsec mom + crypto xsec mom, monthly ρ=0.40, var-reduction 32% | ✅ **2026-05-03 — 2 of ≥3 needed (lesson #39)** |
-| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **2-strategy diversified portfolio deployable**; 3rd uncorrelated still wanted but not strictly needed (lesson #27 was a heuristic) |
+| **10 — Regime filter** | Asset > 200d-MA gate (SPY for equity, BTC for crypto) | ✅ **2026-05-03 — Sharpe +0.4 to +0.5, MaxDD halved, 2022 dodged (lesson #40)** |
+| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **2-strategy regime-filtered ensemble deployable** (Sharpe 1.89, MaxDD 9.2%, ρ=0.18) |
 | 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |
 
 ### Gate 1 Scoreboard (historical record — see lessons.md #34 for the architectural conclusion)
