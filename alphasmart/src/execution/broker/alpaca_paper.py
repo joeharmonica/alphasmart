@@ -46,12 +46,23 @@ class AlpacaConfig:
 
     @classmethod
     def from_env(cls) -> "AlpacaConfig":
-        key = os.environ.get("ALPACA_API_KEY")
-        secret = os.environ.get("ALPACA_API_SECRET")
+        # Support both naming conventions: ours (ALPACA_API_SECRET) and the
+        # legacy .env.example template (ALPACA_SECRET). APCA_* are the
+        # official alpaca-trade-api SDK names; we accept those too.
+        key = (
+            os.environ.get("ALPACA_API_KEY")
+            or os.environ.get("APCA_API_KEY_ID")
+        )
+        secret = (
+            os.environ.get("ALPACA_API_SECRET")
+            or os.environ.get("ALPACA_SECRET")
+            or os.environ.get("APCA_API_SECRET_KEY")
+        )
         if not key or not secret:
             raise RuntimeError(
-                "ALPACA_API_KEY and ALPACA_API_SECRET must be set "
-                "to use AlpacaPaperBroker in real mode. For local tests "
+                "ALPACA_API_KEY and ALPACA_API_SECRET (or ALPACA_SECRET) must be "
+                "set to use AlpacaPaperBroker in real mode. Add them to .env "
+                "(NOT .env.example, which is committed to git). For local tests "
                 "construct with mock=True."
             )
         return cls(api_key=key, api_secret=secret)

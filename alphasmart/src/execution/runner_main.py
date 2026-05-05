@@ -40,6 +40,13 @@ from typing import Optional
 
 import pandas as pd
 
+# Load .env if present — same pattern as api.py / main.py
+try:
+    from dotenv import load_dotenv
+    load_dotenv(Path(__file__).resolve().parents[2] / ".env", override=False)
+except ImportError:
+    pass
+
 from src.data.database import Database
 from src.execution.broker.alpaca_paper import (
     AlpacaPaperBroker, AlpacaConfig,
