@@ -528,3 +528,35 @@ This is the project's **first genuinely uncorrelated pair of PORTFOLIO_READY str
 **Bootstrap caveat:** the bootstrap on the filtered equity strategy returned ratio 0.638 — just below the 0.65 ROBUST cutoff. **This is an artefact of the bootstrap design**, not a fragility finding. The bootstrap synthesises new asset paths but the regime filter still uses the *real* SPY series for its 200d-MA gate, creating a logical inconsistency between filter timeline and strategy timeline. Proper bootstrap would synchronise SPY into the synthetic universe (SPY is in our 15-symbol list, so this is straightforward). Without that fix, the filtered-bootstrap result is suggestive but not authoritative. Re-test with SPY-synchronised bootstrap before treating 0.638 as a real bootstrap failure.
 
 **Rule:** **Always pair a strategy with its conjugate regime filter before paper-trading.** A strategy that works "in the right regime" but bleeds "in the wrong regime" is unsafe to deploy without the filter. The regime filter is *not* an enhancement — it is part of the strategy's correctness specification. For a momentum strategy, the rule is `if SPY < 200d-MA → cash`. For mean-reversion, the rule is `if realised_vol > threshold → cash`. The filter typically improves Sharpe by 0.3-0.5 and cuts MaxDD by 30-50% — the largest single-change improvement available, and a critical safety net for live deployment.
+
+---
+
+## 41. No Single Regime Filter Wins All Regimes — Soft + Breadth Dominates Chop, Binary Wins Sustained Bears
+
+**Result (2026-05-03):** Six filter variants tested on the equity xsec momentum strategy across the full 10-yr window plus four stress sub-periods. Variants:
+- A: unfiltered baseline
+- B: binary 200d-MA on bellwether (SPY for equity, BTC for crypto)
+- C: soft 200d-MA (linear ramp 0 at 0.95×MA → 1 at 1.05×MA)
+- D: binary breadth (>50% of universe above own 200d-MA)
+- E: combined binary (B AND D)
+- F: soft combined (soft price × soft breadth)
+
+**Full-window ranking (Sharpe):** F (1.951) ≈ C (1.941) > E (1.937) ≈ B (1.905) > D (1.893) > A (1.503). Top variants are within noise of each other on the full window.
+
+**Stress-period ranking is variant-specific — no overall winner:**
+| Period | Best variant | Best Sharpe | Why |
+|---|---|---:|---|
+| 2018 chop | F (soft+breadth) | 2.152 | Partial allocation rides through whipsaw |
+| 2020 H1 V-shape | D (breadth) | 3.225 | Breadth recovers faster than price-vs-MA |
+| 2022 sustained bear | B (binary price) | 0.721 | Clean cut; soft variants bleed via partial allocation |
+| 2024-25 bull | C (soft price) | 1.679 | No unnecessary cash during minor pullbacks |
+
+**The key lesson:** filter ranking flips by regime. Soft variants (C, F) dominate choppy and bullish regimes — partial allocation avoids whipsaw and cash-drag. Binary variants (B, E) dominate sustained bears — they cut cleanly and stay out, while soft variants leak by holding partial allocation through the slow grind down.
+
+**Diagnostic implication:** if you pick a filter by full-window Sharpe alone, you'll get a chop-and-bull-favoured variant (F) that underperforms in sustained bears (2022 F: 0.20 vs B: 0.72). For paper-trading deployment, the right framing is: optimize the filter for the regime you're *most concerned about*. If 2022-style sustained bears are the primary tail risk, choose B. If 2018-style chop and 2020-style fast V-shapes are the worry, choose F.
+
+**Practical recommendation for our deployment:** **B_binary_price for equity** (clean bear-market protection is the binding tail risk) and **F_soft_combined for crypto** (crypto's volatility profile favours soft handling — and 2022 winter was already cleanly avoided by B's predecessor). Best ensemble: Sharpe 1.956, MaxDD 6.2%, ρ=0.16.
+
+**SPY-synchronised bootstrap fix:** lesson #40 noted that the regime-filter bootstrap returned ratio 0.638 (just under 0.65) but caveated this as a bootstrap-design artefact (synthetic universe + real SPY timeline). With SPY synchronised into the synthetic block-bootstrap (SPY is in the 15-symbol universe; we just use the synthetic SPY series for the regime filter inside each sim), the ratio jumps to **0.901 — decisively ROBUST**. The earlier 0.638 was indeed an artefact, not a real fragility signal. Lesson: when bootstrapping a strategy that has a filter or external input, always verify the filter input is included in the synchronised bootstrap; otherwise the bootstrap measures something other than the strategy's actual robustness.
+
+**Rule:** when designing regime filters, **don't pick by full-window Sharpe alone.** Run a stress-test grid (one column per regime: chop / V-shape / sustained-bear / bull-continuation) and choose by the *worst-case* metric in your most-concerning regime. The strategy is the part that earns alpha; the filter is the part that controls tail risk. Both matter, but the filter's job is specifically tail-risk management, so optimize it for tails not means.

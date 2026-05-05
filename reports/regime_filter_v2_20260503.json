@@ -1,0 +1,87 @@
+{
+  "generated_utc": "2026-05-03T01:24:51.012716+00:00",
+  "equity_variants": {
+    "A_unfiltered": {
+      "sharpe": 1.503383282821607,
+      "cagr": 0.2579290293954042,
+      "max_drawdown": 0.19555268229135103,
+      "in_market_pct": 0.9499005964214712
+    },
+    "B_binary_price": {
+      "sharpe": 1.9048854329396496,
+      "cagr": 0.2895711374217744,
+      "max_drawdown": 0.10784475553145301,
+      "in_market_pct": 0.7614314115308151
+    },
+    "C_soft_price": {
+      "sharpe": 1.9411117088486165,
+      "cagr": 0.2832020872716372,
+      "max_drawdown": 0.1053339795631788,
+      "in_market_pct": 0.8493041749502982
+    },
+    "D_binary_breadth": {
+      "sharpe": 1.8932433439784497,
+      "cagr": 0.28643790823308457,
+      "max_drawdown": 0.10784475553145279,
+      "in_market_pct": 0.7693836978131213
+    },
+    "E_combined_binary": {
+      "sharpe": 1.9372653446063783,
+      "cagr": 0.2906527473875189,
+      "max_drawdown": 0.10784475553145245,
+      "in_market_pct": 0.7495029821073559
+    },
+    "F_soft_combined": {
+      "sharpe": 1.9507432731562826,
+      "cagr": 0.28075745294602594,
+      "max_drawdown": 0.10533397956317869,
+      "in_market_pct": 0.8135188866799204
+    }
+  },
+  "crypto_variants": {
+    "A_unfiltered": {
+      "sharpe": 1.0913947856157311,
+      "cagr": 0.2530197417564355,
+      "max_drawdown": 0.29841193463198856,
+      "in_market_pct": 0.9835706462212487
+    },
+    "B_binary_price": {
+      "sharpe": 1.6139413208514866,
+      "cagr": 0.2742955657576416,
+      "max_drawdown": 0.15037941826406975,
+      "in_market_pct": 0.48630887185104055
+    },
+    "C_soft_price": {
+      "sharpe": 1.5822343423758143,
+      "cagr": 0.2657204020671604,
+      "max_drawdown": 0.14948110927498248,
+      "in_market_pct": 0.5613362541073385
+    },
+    "D_binary_breadth": {
+      "sharpe": 1.5790780722379334,
+      "cagr": 0.2268534175894421,
+      "max_drawdown": 0.10109141926350518,
+      "in_market_pct": 0.3614457831325301
+    },
+    "E_combined_binary": {
+      "sharpe": 1.5795446069065653,
+      "cagr": 0.22689944051126543,
+      "max_drawdown": 0.10109141926350507,
+      "in_market_pct": 0.3603504928806134
+    },
+    "F_soft_combined": {
+      "sharpe": 1.643115961450497,
+      "cagr": 0.23394718763879596,
+      "max_drawdown": 0.10109141926350529,
+      "in_market_pct": 0.4687842278203724
+    }
+  },
+  "best_equity_variant": "F_soft_combined",
+  "spy_synchronised_bootstrap": {
+    "sim_p25": 1.6230758085727226,
+    "sim_p50": 1.7570429183508014,
+    "sim_p75": 1.918929458072866,
+    "ratio": 0.9007043328197277,
+    "verdict": "ROBUST"
+  }
+}
