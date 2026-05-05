@@ -239,6 +239,38 @@ def test_reconciler_cumulative_drift_halts(broker, state, tmp_root):
     assert result.cumulative_drift_pct > 0.05
 
 
+def test_reconciler_pending_open_orders_credited_as_pending_fill(reconciler, broker, state):
+    """
+    After a paper-mode submit when market is closed, orders queue with status
+    'new' (not yet filled). Reconciliation should credit those pending orders
+    against expected positions and not halt.
+    """
+    state.write("s", "rb",
+                target_weights={"AAPL": 0.5, "MSFT": 0.5},
+                portfolio_value=2000.0,
+                latest_prices={"AAPL": 100.0, "MSFT": 100.0})
+    # Mock broker doesn't queue in real-Alpaca sense; we synthesise pending
+    # orders by directly manipulating the mock orders list to a non-filled status.
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-1", client_order_id="cid-1", symbol="AAPL",
+        qty=10.0, side="buy", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-2", client_order_id="cid-2", symbol="MSFT",
+        qty=10.0, side="buy", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    # No actual positions yet; broker.get_positions() returns []
+    result = reconciler.reconcile()
+    assert result.should_halt is False
+    pending = [s for s in result.symbols if s.classification == "pending_fill"]
+    assert len(pending) == 2
+    assert {s.symbol for s in pending} == {"AAPL", "MSFT"}
+
+
 def test_reconciler_logs_full_per_symbol_breakdown(reconciler, broker, state, tmp_root):
     state.write("s", "rb",
                 target_weights={"AAPL": 1.0},

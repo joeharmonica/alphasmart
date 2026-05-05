@@ -221,6 +221,41 @@ def test_trading_blocked_short_circuits(spec, broker, tmp_log_root, synthetic_cl
     assert broker.get_positions() == []
 
 
+def test_pending_orders_prevent_double_submit(spec, broker, tmp_log_root, synthetic_closes):
+    """
+    After a paper-mode rebalance submits orders, if those orders are still
+    pending (not yet filled), a SECOND rebalance call should NOT submit
+    duplicates. The runner credits open orders against current weights.
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+    log = ShadowLog(channel="runner_pending", root=tmp_log_root)
+    runner = StrategyRunner(spec=spec, broker=broker, mode="paper", log=log)
+    # First rebalance fills via the mock broker (mock fills instantly).
+    r1 = runner.rebalance(synthetic_closes)
+    assert r1.orders_submitted == 3   # top-K of mini spec
+
+    # Simulate market-closed scenario: clear positions and instead inject
+    # pending orders that broker would emit when paper-trading after hours.
+    broker._mock_positions.clear()
+    broker._mock_account.cash = 100_000.0  # reset cash so portfolio value ok
+    for sym, w in r1.target_weights.items():
+        # Quantity matches what the runner just sized
+        price = float(synthetic_closes[sym].iloc[-1])
+        qty = round(w * 100_000.0 / price, 6)
+        broker._mock_orders.append(AlpacaOrderResult(
+            id=f"pending-{sym}", client_order_id=f"cid-{sym}", symbol=sym,
+            qty=qty, side="buy",
+            submitted_at=datetime.now(timezone.utc),
+            status="new", filled_qty=0.0,
+        ))
+
+    r2 = runner.rebalance(synthetic_closes)
+    # Pending orders close the gap, so no new orders should be submitted
+    assert r2.orders_submitted == 0
+    assert r2.orders_skipped_threshold > 0
+
+
 def test_log_records_rebalance_lifecycle(runner, synthetic_closes, tmp_log_root):
     runner.rebalance(synthetic_closes)
     log_files = list(tmp_log_root.rglob("runner_test.jsonl"))

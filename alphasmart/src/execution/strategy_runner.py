@@ -196,6 +196,30 @@ class StrategyRunner:
             return {}
         return {p.symbol: p.market_value / portfolio_value for p in positions}
 
+    def _add_pending_orders_to_weights(
+        self,
+        current_weights: dict[str, float],
+        pending_orders: list,
+        latest_prices: dict[str, float],
+        portfolio_value: float,
+    ) -> dict[str, float]:
+        """
+        Credit pending (open) broker orders against current weights so
+        subsequent rebalances don't double-submit. A pending buy for AAPL of
+        $20k effectively raises current_weight[AAPL] toward the target.
+        """
+        if portfolio_value <= 0 or not pending_orders:
+            return dict(current_weights)
+        out = dict(current_weights)
+        for o in pending_orders:
+            price = latest_prices.get(o.symbol)
+            if price is None or price <= 0:
+                continue
+            signed_qty = o.qty if o.side == "buy" else -o.qty
+            value = signed_qty * price
+            out[o.symbol] = out.get(o.symbol, 0.0) + (value / portfolio_value)
+        return out
+
     def _compute_orders(
         self,
         target_weights: dict[str, float],
@@ -307,6 +331,15 @@ class StrategyRunner:
         positions = self.broker.get_positions()
         current_weights = self._current_weights_from_positions(positions, account.portfolio_value)
 
+        # Pending orders — credit them against current so we don't double-submit
+        # if a previous rebalance's orders are still queued (market closed,
+        # latency, partial fills, etc.). Best-effort: tolerate broker
+        # failures here.
+        try:
+            pending_orders = self.broker.list_open_orders()
+        except Exception:
+            pending_orders = []
+
         # Compute target
         target_weights, filter_value = self._compute_target_weights(closes)
         self.log.event(
@@ -314,13 +347,22 @@ class StrategyRunner:
             {"weights": target_weights, "filter_value": filter_value,
              "n_holdings": len(target_weights)},
         )
-        self.log.event("current_weights", {"weights": current_weights})
 
         # Build orders
         latest_prices = {sym: float(closes[sym].iloc[-1]) for sym in closes.columns
                          if not pd.isna(closes[sym].iloc[-1])}
+        effective_current = self._add_pending_orders_to_weights(
+            current_weights, pending_orders, latest_prices, account.portfolio_value,
+        )
+        self.log.event(
+            "current_weights",
+            {"positions_only": current_weights,
+             "with_pending_orders": effective_current,
+             "n_pending_orders": len(pending_orders)},
+        )
+
         orders, skipped = self._compute_orders(
-            target_weights, current_weights, account.portfolio_value, latest_prices,
+            target_weights, effective_current, account.portfolio_value, latest_prices,
         )
         self.log.event(
             "orders_planned",

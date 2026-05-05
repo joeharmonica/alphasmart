@@ -43,7 +43,8 @@ class SymbolDrift:
     broker_qty: float
     drift_qty: float
     drift_pct: float                 # broker_qty - expected_qty / expected_qty (when expected > 0)
-    classification: str              # "ok" | "drift" | "missing" | "phantom"
+    classification: str              # "ok" | "drift" | "missing" | "phantom" | "pending_fill"
+    pending_open_qty: float = 0.0    # qty currently in unfilled broker orders
 
 
 @dataclass
@@ -92,19 +93,47 @@ class Reconciler:
             # No expected state yet → first run; just confirm broker is empty.
             return self._handle_no_state(ts, broker_by_sym)
 
+        # Also pull broker open orders so we can credit "pending fills"
+        # toward expected positions. Without this, the reconciler at the
+        # moment of submission (orders queued but not yet filled — e.g. when
+        # market is closed) would always halt with missing_symbols=[...].
+        try:
+            open_orders = self.broker.list_open_orders()
+        except Exception:
+            open_orders = []
+        pending_by_sym: dict[str, float] = {}
+        for o in open_orders:
+            signed = o.qty if o.side == "buy" else -o.qty
+            pending_by_sym[o.symbol] = pending_by_sym.get(o.symbol, 0.0) + signed
+
         expected = record.positions
-        all_syms = set(expected) | set(broker_by_sym)
+        all_syms = set(expected) | set(broker_by_sym) | set(pending_by_sym)
         symbols: list[SymbolDrift] = []
         for sym in sorted(all_syms):
+            pending_qty = pending_by_sym.get(sym, 0.0)
             if sym in expected and sym in broker_by_sym:
-                symbols.append(self._classify_match(sym, expected[sym].qty, broker_by_sym[sym]))
+                drift = self._classify_match(sym, expected[sym].qty, broker_by_sym[sym])
+                drift.pending_open_qty = pending_qty
+                symbols.append(drift)
             elif sym in expected:
+                # Expected but not yet at broker. If a pending buy exists
+                # that closes the gap, treat as pending_fill (no halt).
+                expected_qty = expected[sym].qty
+                effective_broker = pending_qty   # what broker WILL show after fill
+                drift_qty = effective_broker - expected_qty
+                drift_pct = drift_qty / expected_qty if expected_qty != 0 else float("inf")
+                if abs(drift_pct) <= self.per_symbol_threshold and pending_qty != 0:
+                    classification = "pending_fill"
+                else:
+                    classification = "missing"
                 symbols.append(SymbolDrift(
                     symbol=sym,
-                    expected_qty=expected[sym].qty, broker_qty=0.0,
-                    drift_qty=-expected[sym].qty,
+                    expected_qty=expected_qty,
+                    broker_qty=0.0,
+                    drift_qty=-expected_qty,
                     drift_pct=-1.0,
-                    classification="missing",
+                    classification=classification,
+                    pending_open_qty=pending_qty,
                 ))
             else:
                 pos = broker_by_sym[sym]
@@ -114,6 +143,7 @@ class Reconciler:
                     drift_qty=pos.qty,
                     drift_pct=float("inf"),
                     classification="phantom",
+                    pending_open_qty=pending_qty,
                 ))
 
         max_drift = max((abs(s.drift_pct) for s in symbols
@@ -121,6 +151,7 @@ class Reconciler:
         cumulative = sum(abs(s.drift_pct) for s in symbols if s.classification == "drift")
         phantom_syms = [s.symbol for s in symbols if s.classification == "phantom"]
         missing_syms = [s.symbol for s in symbols if s.classification == "missing"]
+        pending_syms = [s.symbol for s in symbols if s.classification == "pending_fill"]
 
         # Halt logic (escalation matches design §6 default 4)
         halt_reasons = []
@@ -163,11 +194,13 @@ class Reconciler:
                 "cumulative_drift_pct": cumulative,
                 "phantom_symbols": phantom_syms,
                 "missing_symbols": missing_syms,
+                "pending_fill_symbols": pending_syms,
                 "should_halt": should_halt,
                 "halt_reason": halt_reason,
                 "state_age_seconds": state_age,
                 "n_expected": len(expected),
                 "n_broker": len(broker_by_sym),
+                "n_open_orders": len(open_orders),
                 "symbols": [vars(s) for s in symbols],
             },
             level="error" if should_halt else "info",
