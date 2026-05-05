@@ -25,7 +25,7 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional, Literal
+from typing import Callable, Optional, Literal
 
 try:
     import alpaca_trade_api as tradeapi
@@ -126,6 +126,7 @@ class AlpacaPaperBroker:
         config: Optional[AlpacaConfig] = None,
         mock: bool = False,
         log: Optional[ShadowLog] = None,
+        mock_price_provider: Optional[Callable[[str], float]] = None,
     ) -> None:
         self.mock = mock
         self.log = log or ShadowLog(channel="alpaca_paper")
@@ -133,6 +134,9 @@ class AlpacaPaperBroker:
         if mock:
             self.config = config or AlpacaConfig(api_key="MOCK", api_secret="MOCK")
             self.api = None
+            # Tests set mock_price_provider so positions track data prices.
+            # Default $100 keeps existing simple-case tests working.
+            self._mock_price_provider = mock_price_provider or (lambda _sym: 100.0)
             # Mutable mock state — modified by submit_order
             self._mock_account = AlpacaAccount(
                 account_number="MOCK000001",
@@ -275,8 +279,8 @@ class AlpacaPaperBroker:
 
         if self.mock:
             t0 = time.time()
-            # Simulate fill at some plausible price for testing.
-            mock_fill_price = 100.0
+            # Mock fill price: provided per-symbol by the test, defaults to $100.
+            mock_fill_price = float(self._mock_price_provider(req.symbol))
             order_id = f"mock-{uuid.uuid4().hex[:12]}"
             res = AlpacaOrderResult(
                 id=order_id,
@@ -309,6 +313,7 @@ class AlpacaPaperBroker:
                     del self._mock_positions[req.symbol]
                 else:
                     existing.qty = new_qty
+                    existing.current_price = mock_fill_price
                     existing.market_value = new_qty * mock_fill_price
                     existing.side = "long" if new_qty > 0 else "short"
             self._mock_orders.append(res)
