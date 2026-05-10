@@ -1,0 +1,30 @@
+{
+  "last_updated_utc": "2026-05-05T09:40:12.477060+00:00",
+  "git_sha": "88ba42e642df",
+  "strategy": "equity_xsec_momentum_B",
+  "rebalance_id": "rb-20260505T094012Z-803d94",
+  "positions": {
+    "GOOG": {
+      "qty": 52.681486,
+      "weight": 0.2
+    },
+    "ASML": {
+      "qty": 14.427829,
+      "weight": 0.2
+    },
+    "AMZN": {
+      "qty": 73.515901,
+      "weight": 0.2
+    },
+    "AVGO": {
+      "qty": 48.019208,
+      "weight": 0.2
+    },
+    "QQQ": {
+      "qty": 29.722982,
+      "weight": 0.2
+    }
+  },
+  "cash_weight": 0.0,
+  "portfolio_value": 100000.0
+}

@@ -16,8 +16,114 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **4 — Dashboard** | React UI, Next.js, optimization queue, opt-params persistence | ✅ Complete |
 | **Step 1 Live Run** | Full data fetch, batch backtest, optimization, reports | ✅ 2026-04-07 |
 | **Steps 3–5** | Regime filter, V2 composites, intraday mini-batch | ✅ 2026-04-07 |
-| 5 — Forward Testing | Paper trading, 30-day run | 🔜 Next |
+| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running** — 2-strategy regime-filtered ensemble (Sharpe 1.89, MaxDD 9.2%, ρ=0.18) |
 | 6 — Live Deployment | Real capital, broker integration | 🔜 Planned |
+
+> The current paper-trade run uses the equity leg only (`equity_xsec_momentum_B`): 15-symbol mega-cap cross-sectional 6-month momentum, top-5 equal-weight, monthly rebalance, gated by SPY > 200d-MA. See `alphasmart/tasks/paper_trade_design.md` for the full design and pass/fail rubric.
+
+---
+
+## Paper-Trade — Clone & Resume on Another Machine
+
+The paper-trade orchestrator is `alphasmart/src/execution/runner_main.py`, scheduled by cron. State lives in `reports/paper_trade/` (committed) and the local OHLCV DB `alphasmart/alphasmart_dev.db` (gitignored — rebuild on each machine via `runner_main fetch`). Secrets live in `alphasmart/.env` (gitignored — copy from old machine or recreate from `.env.example`). Source of truth for actual positions is the Alpaca paper account; the local state file is a cache that the reconciler cross-checks every rebalance.
+
+### One-time migration steps
+
+**On the OLD machine — stop the cron and capture latest state:**
+
+```bash
+crontab -l > ~/crontab.bak.txt          # backup current schedule
+crontab -r                              # disable cron (prevents double-runs during handoff)
+
+cd ~/alphasmart
+python -m src.execution.runner_main status  # verify state file is current
+git add reports/paper_trade/ alphasmart/tasks/
+git commit -m "paper-trade: snapshot state for machine migration"
+git push
+```
+
+**On the NEW machine — clone, install, restore secrets, bootstrap data, re-arm cron:**
+
+```bash
+# 1. Clone (use lowercase path to avoid case-sensitivity surprises on Linux)
+git clone https://github.com/joeharmonica/alphasmart.git ~/alphasmart
+cd ~/alphasmart/alphasmart
+
+# 2. Python env + deps (Python 3.11+ required)
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# 3. Restore secrets — copy ~/.env from old machine OR recreate:
+cp .env.example .env
+#   Edit .env and set:
+#     ALPACA_API_KEY=<paper-key from https://app.alpaca.markets/paper/dashboard/overview>
+#     ALPACA_API_SECRET=<paper-secret>
+#     ANTHROPIC_API_KEY=<optional, only needed for LLM copilot>
+
+# 4. Smoke-test connectivity + rebuild local OHLCV DB
+python -m src.execution.runner_main fetch --lookback 1y --verbose
+#   This populates alphasmart_dev.db from yfinance and confirms broker reachability.
+
+# 5. Verify state-file matches the broker (the reconciler runs at every rebalance,
+#    but a manual shadow run lets you eyeball drift before re-enabling cron):
+python -m src.execution.runner_main rebalance --mode shadow --kind manual --verbose
+
+# 6. Inspect the latest log line — drift_pct on each symbol must be < 1%
+tail -1 reports/paper_trade/$(date -u +%Y%m%d)/equity_xsec_momentum_B.jsonl | python -m json.tool
+
+# 7. Install cron (US Eastern equity close = 16:00 ET ≈ 21:00 UTC during DST)
+crontab -e
+```
+
+Add these lines to crontab (paths assume clone at `$HOME/alphasmart` — adjust if different):
+
+```cron
+# AlphaSMART paper-trade — equity rebalance, weekdays 17:00 local (after US close)
+0 17 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode paper --fetch-before-rebalance >> $HOME/alphasmart/alphasmart/logs/cron.log 2>&1
+```
+
+> ⚠️ `cron` does not expand `$HOME` on every system. If your `crontab -l` shows the literal `$HOME` instead of `/Users/you` or `/home/you`, replace `$HOME` with the absolute path before saving.
+
+**Verify cron fired:**
+
+```bash
+tail -f ~/alphasmart/alphasmart/logs/cron.log
+# After the next scheduled run you should see: "rebalance_id": "rb-...", "drift_pct" < 0.01
+python -m src.execution.runner_main status   # confirms last_updated_utc moved forward
+```
+
+### What transfers via git, what doesn't
+
+| Path | Tracked? | Notes |
+|---|---|---|
+| `alphasmart/src/**` | ✅ | All source code |
+| `alphasmart/tasks/paper_trade_design.md`, `lessons.md`, `todo.md`, `implementation_plan_v2.md` | ✅ | Design + decision log |
+| `reports/paper_trade/state/` | ✅ | Position cache + history; reconciler validates against broker on next run |
+| `reports/paper_trade/<YYYYMMDD>/*.jsonl` | ✅ | Daily shadow/paper logs (audit trail) |
+| `alphasmart/.env` | ❌ | Secrets — copy manually or recreate |
+| `alphasmart/alphasmart_dev.db` | ❌ | OHLCV cache — rebuild via `runner_main fetch` |
+| `alphasmart/venv/`, `__pycache__/`, `*.log` | ❌ | Recreate on new machine |
+
+### Halting paper trading
+
+```bash
+# Trigger a halt manually (writes reports/paper_trade/state/halt.equity_xsec_momentum_B.json)
+# — runner_main refuses to rebalance until the file is removed
+echo '{"halted_at_utc":"...","reason":"manual"}' > reports/paper_trade/state/halt.equity_xsec_momentum_B.json
+
+# Clear the halt after operator review
+python -m src.execution.runner_main clear-halt
+```
+
+The reconciler also auto-halts if cumulative position drift > 1% (see `paper_trade_design.md` §6.4).
+
+### Subsequent tasks (post-paper-trade)
+
+After 7 shadow days + 30 paper days clear the rubric in `paper_trade_design.md` §5:
+1. Add the crypto leg (`crypto_xsec_momentum_F`) — see Phase 9 in the inner README.
+2. Begin Phase 7 (live deployment, real capital) — gated on the 30-day Sharpe-vs-backtest check.
+3. Outstanding research items live in `alphasmart/tasks/todo.md` and `tasks/implementation_plan_v2.md`.
 
 ---
 

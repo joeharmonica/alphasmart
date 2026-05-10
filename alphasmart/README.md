@@ -60,6 +60,45 @@ The 2021–2026 period embeds a 2022 bear market (NVDA –65%, broad tech –30%
 
 ---
 
+## Paper-Trade Runner
+
+The live paper-trade orchestrator lives in `src/execution/`. CLI entrypoint: `python -m src.execution.runner_main`.
+
+```bash
+# One-shot rebalance against the equity strategy in shadow mode (no orders)
+python -m src.execution.runner_main rebalance --mode shadow --kind manual --verbose
+
+# Same in paper mode (submits to Alpaca paper account)
+python -m src.execution.runner_main rebalance --mode paper --fetch-before-rebalance
+
+# Standalone OHLCV fetch (rebuilds alphasmart_dev.db cache)
+python -m src.execution.runner_main fetch --lookback 1y --verbose
+
+# Inspect current state + halt flag
+python -m src.execution.runner_main status
+
+# Lift a halt after operator review
+python -m src.execution.runner_main clear-halt
+```
+
+**State files** live under `../reports/paper_trade/`:
+- `state/<channel>.json` — current positions (committed to git as a migration aid; reconciler validates against the broker on every run)
+- `state/<channel>.history.jsonl` — append-only audit log of every state write
+- `state/halt.<channel>.json` — kill-switch; while present, rebalance refuses to run
+- `<YYYYMMDD>/<channel>.jsonl` — daily structured event logs (preflight, signals, fills, drift)
+
+**Strategy spec (built-in):** `equity_xsec_momentum_B` — 15-symbol mega-cap cross-sectional 6-month momentum, top-5 equal-weight, 21-day rebalance, gated by SPY > 200d-MA. Defined in `src/execution/runner_main.py::build_equity_spec`. See `tasks/paper_trade_design.md` for the full design, pre-flight checks, and 7-day shadow / 30-day paper pass rubric.
+
+**Cron schedule (production, weekdays after US close):**
+
+```cron
+0 17 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode paper --fetch-before-rebalance >> $HOME/alphasmart/alphasmart/logs/cron.log 2>&1
+```
+
+For full clone-and-resume instructions (migrating the runner to a new machine), see [`../README.md` → "Paper-Trade — Clone & Resume on Another Machine"](../README.md#paper-trade--clone--resume-on-another-machine).
+
+---
+
 ## Quick Start
 
 **Requirements:** Python 3.11+, Node.js 18+
