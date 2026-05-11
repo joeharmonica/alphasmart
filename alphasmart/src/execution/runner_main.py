@@ -67,8 +67,8 @@ from src.execution.strategy_runner import (
 # ---------------------------------------------------------------------------
 
 EQUITY_UNIVERSE = sorted([
-    "AAPL", "AMZN", "ASML", "AVGO", "GOOG", "MA", "META", "MSFT", "NOW",
-    "NVDA", "NVO", "QQQ", "SPY", "TSLA", "V",
+    "AAPL", "AMD", "AMZN", "ASML", "AVGO", "GOOG", "LLY", "MA", "META",
+    "MSFT", "NOW", "NVDA", "NVO", "QQQ", "SPY", "TSLA", "V",
 ])
 
 
