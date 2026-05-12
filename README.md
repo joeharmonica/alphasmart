@@ -19,7 +19,7 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running** — 2-strategy regime-filtered ensemble (Sharpe 1.89, MaxDD 9.2%, ρ=0.18) |
 | 6 — Live Deployment | Real capital, broker integration | 🔜 Planned |
 
-> The current paper-trade run uses the equity leg only (`equity_xsec_momentum_B`): 15-symbol mega-cap cross-sectional 6-month momentum, top-5 equal-weight, monthly rebalance, gated by SPY > 200d-MA. See `alphasmart/tasks/paper_trade_design.md` for the full design and pass/fail rubric.
+> The current paper-trade run uses the equity leg only (`equity_xsec_momentum_B`): **17-symbol** mega-cap cross-sectional 6-month momentum, top-5 equal-weight, monthly rebalance, gated by SPY > 200d-MA. Universe v2 (2026-05-11) added AMD + LLY for a −2.3pp MaxDD / +0.7pp CAGR trade-off; see `alphasmart/tasks/strategies.md` for the universe-history audit trail and `alphasmart/tasks/paper_trade_design.md` for the full design and pass/fail rubric.
 
 ---
 
@@ -58,11 +58,14 @@ pip install -r requirements.txt
 cp .env.example .env
 #   Edit .env and set:
 #     ALPACA_API_KEY=<paper-key from https://app.alpaca.markets/paper/dashboard/overview>
-#     ALPACA_API_SECRET=<paper-secret>
+#     ALPACA_SECRET=<paper-secret>            # legacy name; ALPACA_API_SECRET also accepted
 #     ANTHROPIC_API_KEY=<optional, only needed for LLM copilot>
+chmod 600 .env
 
-# 4. Smoke-test connectivity + rebuild local OHLCV DB
-python -m src.execution.runner_main fetch --lookback 1y --verbose
+# 4. Smoke-test connectivity + rebuild local OHLCV DB for the v2 universe (17 symbols).
+#    --lookback 10y populates enough history for re-running backtests; for operation alone,
+#    1y is sufficient (the strategy only needs the trailing 126 trading days).
+python -m src.execution.runner_main fetch --lookback 10y --force --verbose
 #   This populates alphasmart_dev.db from yfinance and confirms broker reachability.
 
 # 5. Verify state-file matches the broker (the reconciler runs at every rebalance,
@@ -76,14 +79,19 @@ tail -1 reports/paper_trade/$(date -u +%Y%m%d)/equity_xsec_momentum_B.jsonl | py
 crontab -e
 ```
 
-Add these lines to crontab (paths assume clone at `$HOME/alphasmart` — adjust if different):
+Add these two lines to crontab (paths assume clone at `$HOME/alphasmart` — adjust if different):
 
 ```cron
 # AlphaSMART paper-trade — equity rebalance, weekdays 17:00 local (after US close)
 0 17 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode paper --fetch-before-rebalance >> $HOME/alphasmart/alphasmart/logs/cron.log 2>&1
+
+# AlphaSMART smoke check — shadow rebalance every day 17:40, alerts if preflight or signal goes sideways
+40 17 * * * cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode shadow --kind smoke --stale-after-hours 240 >> $HOME/alphasmart/alphasmart/logs/cron_test.log 2>&1
 ```
 
 > ⚠️ `cron` does not expand `$HOME` on every system. If your `crontab -l` shows the literal `$HOME` instead of `/Users/you` or `/home/you`, replace `$HOME` with the absolute path before saving.
+
+> ⚠️ **Pre-market rebalance can write a false-positive halt.** If the cron first fires before US market open (or you run a manual `rebalance --mode paper` outside market hours), the reconciler will halt the channel because pending SELLs aren't credited against phantom positions (`reconciler.py:138-147`; see `alphasmart/tasks/lessons.md` #43). Wait for fills, verify positions match the target weights, then `python -m src.execution.runner_main clear-halt`. Daytime weekday cron firings are not affected.
 
 **Verify cron fired:**
 
