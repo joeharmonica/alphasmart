@@ -1,6 +1,6 @@
 # AlphaSMART — Lessons Learned
 
-_Updated: 2026-04-26 (session 6: ATR trailing-stop wrapper, first combined Gate1+Gate2 pass)_
+_Updated: 2026-05-12 (universe v2 + cash-buffer preflight unblock + reconciler false-positive)_
 
 ---
 
@@ -560,3 +560,35 @@ This is the project's **first genuinely uncorrelated pair of PORTFOLIO_READY str
 **SPY-synchronised bootstrap fix:** lesson #40 noted that the regime-filter bootstrap returned ratio 0.638 (just under 0.65) but caveated this as a bootstrap-design artefact (synthetic universe + real SPY timeline). With SPY synchronised into the synthetic block-bootstrap (SPY is in the 15-symbol universe; we just use the synthetic SPY series for the regime filter inside each sim), the ratio jumps to **0.901 — decisively ROBUST**. The earlier 0.638 was indeed an artefact, not a real fragility signal. Lesson: when bootstrapping a strategy that has a filter or external input, always verify the filter input is included in the synchronised bootstrap; otherwise the bootstrap measures something other than the strategy's actual robustness.
 
 **Rule:** when designing regime filters, **don't pick by full-window Sharpe alone.** Run a stress-test grid (one column per regime: chop / V-shape / sustained-bear / bull-continuation) and choose by the *worst-case* metric in your most-concerning regime. The strategy is the part that earns alpha; the filter is the part that controls tail risk. Both matter, but the filter's job is specifically tail-risk management, so optimize it for tails not means.
+
+---
+
+## 42. Cash Buffer Preflight Was Incompatible With A 100%-Allocated Strategy — Silent Halt For 4 Days
+
+**Symptom (2026-05-11):** While verifying a universe-v2 change, found the paper-trade cron had been **silently halted since 2026-05-07** — 4 consecutive scheduled rebalances (May 7, 8, 11) all blocked by the `cash_buffer` preflight failing with `cash buffer -0.0160 < 0.01`. The same exact $-1,647.42 deficit appeared in all halted runs, confirming no rebalance had executed to correct it. State file `last_updated_utc` was 2026-05-05 — the last successful rebalance.
+
+**Root cause:** The strategy spec is `top_k=5, weight=1/top_k=0.20` per name — **100% allocated, zero cash reserve by design**. The preflight required cash ≥ 1% of portfolio value as a buffer for commission + slippage. These two requirements are *mathematically incompatible* the moment any held position drifts above its 20% target — which happens every period a winner appreciates faster than the basket average. On 2026-05-11 live broker state showed ASML at 21.8% and QQQ at 20.5% of portfolio; positions summed to 101.6% → cash was −1.6% → preflight halted the rebalance that would have *fixed* the drift.
+
+**The vicious loop:** the cash deficit can only be corrected by selling overweight positions, but the preflight blocks rebalance precisely because cash is negative. Without manual intervention, the strategy stays halted forever the moment any winner runs.
+
+**Fix:** Loosened `min_cash_buffer_pct` from `+0.01` to `-0.02` in `runner_main.py:194`. The buffer's job is to alarm on *cash blowouts* (a sign of margin abuse or pricing bugs), not on normal drift from a fully-allocated strategy. −2% tolerates a position drifting from 20% to ~22% before alarming — comfortably above commission/slippage but well below a true cash crisis.
+
+**Better long-term fix (not done):** make the strategy spec leave a structural cash buffer (e.g. `top_k=5, weight=0.19` → 95% allocated, 5% cash). This is the cleaner architectural answer — preflight thresholds shouldn't fight the strategy's own allocation logic — but it requires re-backtesting the strategy with the cash drag included. Filed as future work; the threshold loosening is the operational unblock.
+
+**Rule:** **A preflight check that can never pass under the strategy's normal operation is not a safety check — it's a bug.** Whenever you wire a preflight gate, verify it can pass under the strategy's *steady state*, not just its initial state. For a 100%-allocated strategy, the cash buffer must be ≤ 0 minus expected drift; for a leveraged strategy it must account for margin; for a multi-asset strategy it must account for currency settlement timing. Run the preflight against the live state at least once before scheduling the cron — silent halts are worse than loud failures because they masquerade as success.
+
+---
+
+## 43. Reconciler Doesn't Credit Pending SELLs Against Phantom Positions — False-Positive Halt After Pre-Market Rebalance
+
+**Symptom (2026-05-11, 11:57 UTC / 07:57 EDT pre-market):** Submitted a paper-mode rebalance that swapped AMZN out for AMD. All 4 orders submitted successfully to Alpaca (3 SELLs + 1 BUY) and were `accepted` with `status=new`, queued for the 09:30 EDT market open. Immediately after submission, the reconciler ran and **wrote a halt** with reason `per_symbol_drift=0.1153>0.01; cumulative_drift=0.1574>0.005; phantom_symbols=['AMZN']` — even though `equivalence_check_passed=true` and the runner correctly submitted the right 4 orders. Next day's cron would have been blocked by this false-positive halt unless cleared.
+
+**Root cause:** `reconciler.py:96-107` IS pending-aware — it credits pending BUYs against missing-expected symbols (so AMD wouldn't false-flag as missing). But the symmetric case for **pending SELLs against phantom positions** (broker has, target doesn't) is missing — `reconciler.py:138-147` classifies any broker-held symbol not in target as `phantom`, regardless of whether a SELL is pending. When the rebalance is submitted during pre-market or after-hours (orders queued but not filled), every position being closed-and-replaced will momentarily show as phantom + drift until fills land.
+
+**Workaround used:** waited for market open + fills, then ran `clear-halt`. Orders filled cleanly except for a $139 fractional-share residual (0.52 sh AMZN — Alpaca couldn't fully close the fractional position in one market order); submitted a manual cleanup SELL before clearing the halt.
+
+**Proper fix (not done):** mirror the `pending_fill` logic for the phantom branch — if a symbol is broker-held + target=0 + has a pending SELL of equal-or-greater magnitude, classify as `pending_close` rather than `phantom`. One-block change in `reconciler.py` reconcile loop. Filed as future work.
+
+**Adjacent issue — fractional residuals:** Alpaca paper sometimes leaves a small fractional remainder after a SELL of a fractional position. The runner's `rebalance_threshold_pct=0.005` (0.5% of portfolio) means a $139 / $100k = 0.14% residual is **below threshold and would never be retried** by normal rebalance. Combined with the reconciler bug above, this means: every cross-asset swap creates a permanent phantom that halts all future rebalances until manually cleaned up.
+
+**Rule:** **When orders are queued but not filled (pre-market, after-hours, or any broker latency), the reconciler must credit pending orders symmetrically — pending BUYs against missing-expected, AND pending SELLs against phantom-broker.** The asymmetric implementation creates a "you can't rebalance when the market is closed" bug that's invisible at design time and surfaces only when the cron happens to fire during a quiet period. Adjacent rule: **the rebalance threshold (`rebalance_threshold_pct`) interacts with broker fractional behavior** — any rebalance that creates a residual smaller than the threshold will leave it forever; for full position closes (target = 0), bypass the threshold and force the SELL to completion.

@@ -54,6 +54,7 @@ Rebalance cadence is **not encoded in the spec** — it's driven by the external
 |---|---|---|---|---|
 | v1 | initial | 15 | AAPL AMZN ASML AVGO GOOG MA META MSFT NOW NVDA NVO QQQ SPY TSLA V | Hand-curated US large/mega-cap tech-led set |
 | **v2** | **2026-05-11** | **17** | **+AMD, +LLY** | Added after evaluating 10 candidates via `run_xsec_add_ticker.py`; this pair improved full-window MaxDD by −2.3pp and CAGR by +0.7pp, costing only −0.07 Sharpe. AMD picked ~47% of days, LLY ~39%. See `reports/xsec_addticker_SOXL_TECL_MU_AMD_NFLX_ORCL_JPM_LLY_COST_HD_20260511_100222.json` for the full comparison. |
+| **v2.1** | **2026-05-11** | 17 | `min_cash_buffer_pct: 0.01 → -0.02` in `runner_main.py:194` | The strategy targets 100% allocation (5 × 20%), with no built-in cash reserve. As soon as any held position drifts above 20% (which happens every period a winner appreciates), `cash` goes slightly negative and the preflight `cash_buffer` check blocks the next rebalance — preventing the very rebalance that would correct the drift. The cron was silently halted from 2026-05-07 through 2026-05-11 (4 days, 4 missed rebalances) on a $-1,647 deficit (−1.6% of portfolio). Loosening the buffer to −2% covers normal drift while still alarming on genuine cash blowouts. See lesson #42. |
 
 ### v2 full-window baseline metrics (10y, SPY-filtered)
 

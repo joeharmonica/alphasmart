@@ -191,7 +191,7 @@ def orchestrate_rebalance(
     log: Optional[ShadowLog] = None,
     rebalance_threshold_pct: float = 0.005,
     stale_after_hours: float = 36.0,
-    min_cash_buffer_pct: float = 0.01,
+    min_cash_buffer_pct: float = -0.02,
     max_position_pct: float = 0.25,
 ) -> OrchestrationResult:
     """One-rebalance orchestration. Idempotent given the same inputs."""
