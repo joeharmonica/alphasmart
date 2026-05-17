@@ -271,6 +271,112 @@ def test_reconciler_pending_open_orders_credited_as_pending_fill(reconciler, bro
     assert {s.symbol for s in pending} == {"AAPL", "MSFT"}
 
 
+def test_reconciler_pending_sell_credited_as_pending_close(reconciler, broker, state):
+    """
+    Cross-asset swap submitted pre-market: broker holds AMZN, target = AMD.
+    SELL for AMZN is queued (status='new'); without crediting it, the
+    reconciler would halt with phantom_symbols=['AMZN']. Mirror of the
+    pending_fill happy-path test above. Lessons.md #43 — root regression.
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+
+    # State expects AMD only (the post-swap target)
+    state.write("s", "rb",
+                target_weights={"AMD": 1.0},
+                portfolio_value=1000.0, latest_prices={"AMD": 100.0})
+    # Broker still holds AMZN from before the swap
+    broker.submit_order(AlpacaOrderRequest(symbol="AMZN", qty=10.0, side="buy"))
+    # And a pending BUY for AMD (not yet filled, market closed)
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-buy", client_order_id="cid-buy", symbol="AMD",
+        qty=10.0, side="buy", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    # And a pending SELL for AMZN (the close leg — pre lessons.md #43, this
+    # was ignored and AMZN flagged phantom)
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-sell", client_order_id="cid-sell", symbol="AMZN",
+        qty=10.0, side="sell", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    result = reconciler.reconcile()
+    assert result.should_halt is False, f"unexpected halt: {result.halt_reason}"
+    assert result.phantom_symbols == []
+    closed = [s for s in result.symbols if s.classification == "pending_close"]
+    assert len(closed) == 1 and closed[0].symbol == "AMZN"
+    # AMD on the open leg should still be classified pending_fill
+    opened = [s for s in result.symbols if s.classification == "pending_fill"]
+    assert len(opened) == 1 and opened[0].symbol == "AMD"
+
+
+def test_reconciler_pending_sell_below_threshold_still_pending_close(reconciler, broker, state):
+    """
+    SELL leaves a fractional residual <= per_symbol_threshold (1%). The
+    residual is below the noise floor — classify as pending_close, not
+    phantom. This is the actual lessons #43 fractional-residual case
+    (Alpaca often leaves 0.5 sh after a fractional close).
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+
+    state.write("s", "rb",
+                target_weights={"AMD": 1.0},
+                portfolio_value=1000.0, latest_prices={"AMD": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="AMZN", qty=10.0, side="buy"))
+    # SELL covers 9.95 of 10 (0.5% residual — well within 1% threshold)
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-sell-frac", client_order_id="cid", symbol="AMZN",
+        qty=9.95, side="sell", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    result = reconciler.reconcile()
+    closed = [s for s in result.symbols if s.classification == "pending_close"]
+    assert len(closed) == 1
+    assert "AMZN" not in result.phantom_symbols
+
+
+def test_reconciler_pending_sell_too_small_still_phantom(reconciler, broker, state):
+    """
+    A pending SELL that only closes a small fraction of the broker position
+    is NOT a credible close — classify as phantom and halt. Defends against
+    the operator submitting a tiny SELL by mistake while the rest of the
+    position should remain intact and unexpected.
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+
+    state.write("s", "rb",
+                target_weights={"AMD": 1.0},
+                portfolio_value=1000.0, latest_prices={"AMD": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="AMZN", qty=10.0, side="buy"))
+    # Pending SELL only covers 1 of 10 (90% residual — far above 1% threshold)
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-sell-tiny", client_order_id="cid", symbol="AMZN",
+        qty=1.0, side="sell", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    result = reconciler.reconcile()
+    assert "AMZN" in result.phantom_symbols
+    assert result.should_halt is True
+
+
+def test_reconciler_phantom_with_no_pending_still_halts(reconciler, broker, state):
+    """
+    No pending orders at all → unexpected position is unambiguous phantom.
+    Confirms the new pending_close branch doesn't accidentally rescue
+    genuine phantoms.
+    """
+    state.write("s", "rb",
+                target_weights={"AMD": 1.0},
+                portfolio_value=1000.0, latest_prices={"AMD": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="AMD", qty=10.0, side="buy"))
+    broker.submit_order(AlpacaOrderRequest(symbol="AMZN", qty=10.0, side="buy"))
+    result = reconciler.reconcile()
+    assert "AMZN" in result.phantom_symbols
+    assert result.should_halt is True
+
+
 def test_reconciler_logs_full_per_symbol_breakdown(reconciler, broker, state, tmp_root):
     state.write("s", "rb",
                 target_weights={"AAPL": 1.0},

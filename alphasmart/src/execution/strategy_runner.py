@@ -226,19 +226,58 @@ class StrategyRunner:
         current_weights: dict[str, float],
         portfolio_value: float,
         latest_prices: dict[str, float],
+        current_qty_by_symbol: Optional[dict[str, float]] = None,
+        pending_signed_qty_by_symbol: Optional[dict[str, float]] = None,
     ) -> tuple[list[AlpacaOrderRequest], int]:
         """
         Returns (orders, skipped_count). Orders bring current → target; the
         threshold filters out trades whose notional change is below the
         configured percentage of portfolio_value.
+
+        Full-close special case (lessons.md #43, A2 fix):
+          When `sym` exits the universe (`sym not in target_weights`) and the
+          broker still holds it, bypass the threshold and use the **exact
+          broker qty** (minus any pending SELL already in flight). Without
+          this:
+            * The qty derived from `current_w * pv / price` accumulates
+              rounding error vs the broker's actual fractional qty, leaving
+              a tiny residual that the next reconciler flags as phantom.
+            * Tail dust below the threshold (e.g. $0.01 leftover from a
+              prior fractional fill) is never closed and halts subsequent
+              rebalances forever.
         """
         all_syms = set(target_weights) | set(current_weights)
+        if current_qty_by_symbol:
+            all_syms |= set(current_qty_by_symbol)
         threshold_dollars = self.rebalance_threshold_pct * portfolio_value
         orders: list[AlpacaOrderRequest] = []
         skipped = 0
+        qty_by_sym = current_qty_by_symbol or {}
+        pending_by_sym = pending_signed_qty_by_symbol or {}
 
         for sym in sorted(all_syms):
             target_w = target_weights.get(sym, 0.0)
+
+            # ---- Full-close branch: exact qty, no threshold gate ----
+            broker_qty = qty_by_sym.get(sym, 0.0)
+            if sym not in target_weights and broker_qty > 0:
+                # Pending SELLs already reduce what we still need to sell.
+                # `pending_signed` is negative for SELLs, so adding gives the
+                # net qty that will remain at the broker post-fill.
+                pending_signed = pending_by_sym.get(sym, 0.0)
+                qty_to_close = broker_qty + pending_signed
+                if qty_to_close <= 0:
+                    # SELL already in flight that fully covers the position
+                    skipped += 1
+                    continue
+                qty_to_close = round(qty_to_close, 6)
+                if qty_to_close <= 0:
+                    skipped += 1
+                    continue
+                orders.append(AlpacaOrderRequest(symbol=sym, qty=qty_to_close, side="sell"))
+                continue
+
+            # ---- Standard delta branch ----
             current_w = current_weights.get(sym, 0.0)
             target_value = target_w * portfolio_value
             current_value = current_w * portfolio_value
@@ -361,8 +400,19 @@ class StrategyRunner:
              "n_pending_orders": len(pending_orders)},
         )
 
+        # Build qty / pending dicts indexed by symbol for the full-close branch.
+        # `positions` is the broker snapshot (post any prior fills, pre this rebalance);
+        # `pending_orders` is the in-flight queue.
+        current_qty_by_sym = {p.symbol: float(p.qty) for p in positions}
+        pending_signed_by_sym: dict[str, float] = {}
+        for o in pending_orders:
+            signed = float(o.qty) if o.side == "buy" else -float(o.qty)
+            pending_signed_by_sym[o.symbol] = pending_signed_by_sym.get(o.symbol, 0.0) + signed
+
         orders, skipped = self._compute_orders(
             target_weights, effective_current, account.portfolio_value, latest_prices,
+            current_qty_by_symbol=current_qty_by_sym,
+            pending_signed_qty_by_symbol=pending_signed_by_sym,
         )
         self.log.event(
             "orders_planned",

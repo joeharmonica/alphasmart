@@ -87,11 +87,18 @@ Add these two lines to crontab (paths assume clone at `$HOME/alphasmart` — adj
 
 # AlphaSMART smoke check — shadow rebalance every day 17:40, alerts if preflight or signal goes sideways
 40 17 * * * cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode shadow --kind smoke --stale-after-hours 240 >> $HOME/alphasmart/alphasmart/logs/cron_test.log 2>&1
+
+# AlphaSMART silent-halt alarm — twice-daily probe of halt file + state-file age + broker reachability.
+# Exit codes: 0 ok / 10 halt_active / 11 state_stale / 12 broker_unreachable / 13 state_missing.
+# Catches the lessons.md #42 silent-halt scenario (4 days of unnoticed cron failure).
+0 9,22 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main health-check --check-broker > /tmp/alphasmart_health.json 2>&1 || (cat /tmp/alphasmart_health.json >> $HOME/alphasmart/alphasmart/logs/health-alerts.log && osascript -e "display notification \"AlphaSMART health-check FAILED — see logs/health-alerts.log\" with title \"AlphaSMART\"")
 ```
 
 > ⚠️ `cron` does not expand `$HOME` on every system. If your `crontab -l` shows the literal `$HOME` instead of `/Users/you` or `/home/you`, replace `$HOME` with the absolute path before saving.
 
-> ⚠️ **Pre-market rebalance can write a false-positive halt.** If the cron first fires before US market open (or you run a manual `rebalance --mode paper` outside market hours), the reconciler will halt the channel because pending SELLs aren't credited against phantom positions (`reconciler.py:138-147`; see `alphasmart/tasks/lessons.md` #43). Wait for fills, verify positions match the target weights, then `python -m src.execution.runner_main clear-halt`. Daytime weekday cron firings are not affected.
+> ✅ **Pre-market rebalance is now safe** (fixed in this branch — A1/A2). The reconciler credits pending SELLs as `pending_close` (mirror of the existing `pending_fill` branch), and full closes use the broker's exact qty + bypass the rebalance threshold so fractional residuals get cleaned up in one pass. Lessons.md #43 root regression is closed; the historical caveat below is preserved for older clones.
+>
+> ⚠️ **(Older clones — pre-A1/A2)** Pre-market rebalance can write a false-positive halt because pending SELLs aren't credited against phantom positions. Wait for fills, verify positions match the target weights, then `python -m src.execution.runner_main clear-halt`. Daytime weekday cron firings are not affected.
 
 **Verify cron fired:**
 
