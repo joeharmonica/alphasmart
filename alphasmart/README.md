@@ -30,8 +30,38 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **9 — Multi-universe diversification** | Crypto (9 pairs) + bonds (9 ETFs) + sector ETFs (11) | ✅ **2026-05-03 — crypto PORTFOLIO_READY, bonds/sectors killed at Stage 3** |
 | **9 — First uncorrelated pair** | Equity xsec mom + crypto xsec mom, monthly ρ=0.40, var-reduction 32% | ✅ **2026-05-03 — 2 of ≥3 needed (lesson #39)** |
 | **10 — Regime filter** | Asset > 200d-MA gate (SPY for equity, BTC for crypto) | ✅ **2026-05-03 — Sharpe +0.4 to +0.5, MaxDD halved, 2022 dodged (lesson #40)** |
-| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **2-strategy regime-filtered ensemble deployable** (Sharpe 1.89, MaxDD 9.2%, ρ=0.18) |
+| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$100k, top-5 mega-cap basket; see snapshot below |
+| **Operational hardening** | A1 reconciler pending_close, A2 full-close exact-qty, A3 health-check alarm | ✅ Merged 2026-05-17 ([lessons.md #42-#43, #49-#50](tasks/lessons.md)) |
+| **Research: leveraged-ETF DCA** | 6 strategy variants × 5 tickers (SPY/UPRO/QQQ/QLD/TQQQ), 10y window | ✅ Merged 2026-05-17 ([lessons.md #44-#50](tasks/lessons.md), reports under `reports/leveraged_etf_dca*/`) |
 | 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |
+
+### Latest paper-trade snapshot (live broker, 2026-05-17)
+
+| Symbol | Qty | Market value | Weight | Unrealized P/L |
+|---|---:|---:|---:|---:|
+| GOOG | 52.68 | $20,720.68 | 20.66% | +$528 (+2.6%) |
+| QQQ | 28.96 | $20,528.88 | 20.47% | +$895 (+4.6%) |
+| AVGO | 48.02 | $20,417.29 | 20.36% | +$138 (+0.7%) |
+| ASML | 13.28 | $19,939.92 | 19.88% | +$893 (+4.7%) |
+| AMD | 45.24 | $19,188.23 | 19.13% | −$1,854 (−8.8%) |
+| **Total equity** | | **$100,297.96** | 100% | |
+
+Last successful rebalance: **2026-05-11** (AMZN → AMD swap). Last cron: Fri 2026-05-15 21:00 local — preflight blocked on `data_freshness 37h > 36h` (no orders, no halt). **Operational note:** for hosts in UTC+5 or further east, 21:00 local fires before US market open and may consistently trip the freshness preflight; use `--stale-after-hours 50` or move the cron to after US close in your TZ. Filed as next operational tweak. The post-merge A1/A2/A3 stack ensures any halts that *do* fire are now alarmed within 8h via `health-check`.
+
+### Leveraged-ETF DCA research summary (2026-05-17)
+
+Full lessons in [`tasks/lessons.md` #44-#50](tasks/lessons.md). Headline 10-year result (2016-06 → 2026-05, $12,000 invested baseline):
+
+| Ticker | Best strategy | Final $ | MaxDD | Sharpe | Notes |
+|---|---|---:|---:|---:|---|
+| TQQQ | `exit` (regime filter only) | $114,469 | −54% | **1.35** | Beats baseline ($103k, −80%, 1.26) on all 3 metrics — same capital |
+| TQQQ | `hybrid_exit` (DD + regime) | $149,311 | −54% | 1.32 | +$35k for $4.9k extra capital |
+| QQQ | `hybrid_exit` | $34,867 | −21% | 1.48 | Triple-beats baseline ($37k, −30%, 1.47) |
+| QLD | `exit` | $62,699 | −39% | 1.42 | Triple-beats baseline ($71k, −61%, 1.36) |
+| SPY | `dd_ath` | $32,316 | −32% | 1.50 | Higher Sharpe, more capital deployed |
+| UPRO | `exit` | $47,453 | −46% | 1.37 | Hybrid regresses on UPRO (SPY-MA whipsaw) |
+
+**Production rule:** for leveraged-ETF DCA on a multi-cycle horizon, the regime filter (200d-MA exit-reenter, sell-side) is the single biggest improvement — mean MaxDD reduction 38% across all 5 tickers. Buy-side DD rules add absolute return when capital is available but don't reduce MaxDD. **Never use `dd_pl` alone** — it fires only 1-4× over 10y (sample-period artifact). Report directories `reports/leveraged_etf_dca*/` are self-contained with all backing data.
 
 ### Gate 1 Scoreboard (historical record — see lessons.md #34 for the architectural conclusion)
 

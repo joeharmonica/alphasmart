@@ -16,10 +16,25 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **4 — Dashboard** | React UI, Next.js, optimization queue, opt-params persistence | ✅ Complete |
 | **Step 1 Live Run** | Full data fetch, batch backtest, optimization, reports | ✅ 2026-04-07 |
 | **Steps 3–5** | Regime filter, V2 composites, intraday mini-batch | ✅ 2026-04-07 |
-| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running** — 2-strategy regime-filtered ensemble (Sharpe 1.89, MaxDD 9.2%, ρ=0.18) |
+| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$100k, top-5 mega-cap basket |
 | 6 — Live Deployment | Real capital, broker integration | 🔜 Planned |
+| **Operational hardening** | A1/A2/A3 fixes (reconciler, full-close, health-check) | ✅ Merged 2026-05-17 ([lessons.md #42-#43](alphasmart/tasks/lessons.md), [#49-#50](alphasmart/tasks/lessons.md)) |
+| **Research: leveraged-ETF DCA** | 10y DCA backtest, 6 strategy variants × 5 tickers | ✅ Merged 2026-05-17 ([lessons.md #44-#50](alphasmart/tasks/lessons.md), reports under `alphasmart/reports/leveraged_etf_dca*/`) |
 
 > The current paper-trade run uses the equity leg only (`equity_xsec_momentum_B`): **17-symbol** mega-cap cross-sectional 6-month momentum, top-5 equal-weight, monthly rebalance, gated by SPY > 200d-MA. Universe v2 (2026-05-11) added AMD + LLY for a −2.3pp MaxDD / +0.7pp CAGR trade-off; see `alphasmart/tasks/strategies.md` for the universe-history audit trail and `alphasmart/tasks/paper_trade_design.md` for the full design and pass/fail rubric.
+
+### Latest paper-trade snapshot (live broker, 2026-05-17)
+
+| Symbol | Qty | Market value | Weight | Unrealized P/L |
+|---|---:|---:|---:|---:|
+| GOOG | 52.68 | $20,720.68 | 20.66% | +$528 (+2.6%) |
+| QQQ | 28.96 | $20,528.88 | 20.47% | +$895 (+4.6%) |
+| AVGO | 48.02 | $20,417.29 | 20.36% | +$138 (+0.7%) |
+| ASML | 13.28 | $19,939.92 | 19.88% | +$893 (+4.7%) |
+| AMD | 45.24 | $19,188.23 | 19.13% | −$1,854 (−8.8%) |
+| **Total equity** | | **$100,297.96** | 100% | |
+
+Last successful rebalance: **2026-05-11** (AMZN → AMD swap, completed). Last cron firing: Fri 2026-05-15 21:00 local — preflight blocked on `data_freshness 37h > 36h` (no orders submitted, no halt written). **Operational note for non-US timezones:** 21:00 local fires ≈ 09:00 ET = before US market open if your host is in UTC+5 or further east. yfinance's latest daily bar at that moment is still yesterday's close ≈ 37h old, just over the 36h preflight threshold. Two fixes: bump `--stale-after-hours 50` in the cron line, or move the schedule to a time after US close in your local TZ (16:00 ET = 04:00 the next morning in UTC+8). Filed as the next operational tweak.
 
 ---
 
@@ -96,9 +111,9 @@ Add these two lines to crontab (paths assume clone at `$HOME/alphasmart` — adj
 
 > ⚠️ `cron` does not expand `$HOME` on every system. If your `crontab -l` shows the literal `$HOME` instead of `/Users/you` or `/home/you`, replace `$HOME` with the absolute path before saving.
 
-> ✅ **Pre-market rebalance is now safe** (fixed in this branch — A1/A2). The reconciler credits pending SELLs as `pending_close` (mirror of the existing `pending_fill` branch), and full closes use the broker's exact qty + bypass the rebalance threshold so fractional residuals get cleaned up in one pass. Lessons.md #43 root regression is closed; the historical caveat below is preserved for older clones.
+> ✅ **Pre-market rebalance is safe** (closed by lessons #43 / A1 / A2, merged to main 2026-05-17). The reconciler credits pending SELLs as `pending_close` (mirror of the existing `pending_fill` branch), and full closes use the broker's exact qty + bypass the rebalance threshold so fractional residuals get cleaned up in one pass. Older clones pre-this-commit can still write a false-positive halt — pull main and re-run to remove the caveat.
 >
-> ⚠️ **(Older clones — pre-A1/A2)** Pre-market rebalance can write a false-positive halt because pending SELLs aren't credited against phantom positions. Wait for fills, verify positions match the target weights, then `python -m src.execution.runner_main clear-halt`. Daytime weekday cron firings are not affected.
+> ✅ **Silent halts are alarmed** (A3, merged same commit). The `health-check` subcommand returns distinct exit codes per failure class — see the third cron line above. A failed health-check writes to `logs/health-alerts.log` and fires a macOS notification within 8h of the next expected rebalance.
 
 **Verify cron fired:**
 
@@ -257,6 +272,66 @@ The 2021–2026 backtest period contains two distinct regime problems:
 | `reports/backtest_optimized_20260407_072056.csv` | Optimized-params batch: 231 runs |
 | `reports/optimization_results.json` | Full optimizer output: 66 runs with Gate 1/2, overfitting scores, best params |
 | `reports/step1_report.html` | Self-contained HTML dashboard with KPI cards, strategy summary, top-20 rankings, optimizer table |
+
+---
+
+## Strategy Research: Leveraged-ETF DCA (2026-05-17)
+
+A parallel research arc on **dollar-cost-averaging into leveraged ETFs** — outside the cross-sectional momentum production system but built on the same infrastructure. Tested 6 strategy variants × 5 tickers (SPY, UPRO, QQQ, QLD, TQQQ) across two windows (10y full and 2022-start worst-entry). Full lessons in [`alphasmart/tasks/lessons.md` #44-#50](alphasmart/tasks/lessons.md).
+
+### Six strategies tested
+
+| Mode | Buy-side rule | Sell-side rule |
+|---|---|---|
+| `baseline` | $100 every month | hold |
+| `dd_pl` | $200 when portfolio P/L% < 0 | hold |
+| `dd_ath` | $200 when underlying ≤ −20% from all-time high | hold |
+| `dd_hybrid` | $200 when (ATH ≤ −20% AND price > 200d-MA) | hold |
+| `exit` | $100 every month | sell-all when regime OFF; redeploy on OFF→ON |
+| `hybrid_exit` | $200 when (ATH ≤ −20% AND price > 200d-MA) | sell-all when regime OFF; redeploy on OFF→ON |
+
+### 10-year headline (2016-06 → 2026-05, $12,000 invested baseline per ticker)
+
+| Ticker | Best strategy | Final $ | Money mult | MaxDD | Sharpe |
+|---|---|---:|---:|---:|---:|
+| **TQQQ** | `exit` | $114,469 | 9.54× | **−54%** | **1.35** |
+| **TQQQ** | `hybrid_exit` | $149,311 (uses +$4.9k cap) | 8.83× | −54% | 1.32 |
+| TQQQ | baseline | $103,039 | 8.59× | −80% | 1.26 |
+| QQQ | `hybrid_exit` | $34,867 (+$1.6k cap) | 2.56× | **−21%** | **1.48** |
+| QQQ | baseline | $36,897 | 3.07× | −30% | 1.47 |
+| QLD | `exit` | $62,699 | 5.22× | **−39%** | **1.42** |
+| QLD | baseline | $71,412 | 5.95× | −61% | 1.36 |
+| SPY | `dd_ath` | $32,316 (+$2.3k cap) | 2.26× | −32% | **1.50** |
+| SPY | baseline | $27,574 | 2.30× | −32% | 1.46 |
+| **UPRO** | `exit` | $47,453 | 3.95× | **−46%** | **1.37** ← `hybrid_exit` regresses on UPRO due to SPY-MA whipsaw |
+
+### Production strategy hierarchy (lesson #50)
+
+1. **Default**: `exit` (baseline DCA + 200d-MA exit-reenter). Triple-win for TQQQ — higher Sharpe AND lower MaxDD AND higher money mult than baseline on the same capital base. Pareto improvement.
+2. **More capital available**: `hybrid_exit`. Strictly higher terminal $ than `exit` for 4 of 5 tickers at the cost of ~0.1 Sharpe and ~40-65% more capital deployed.
+3. **Max aggression**: `dd_ath`. Highest absolute $ for SPY/UPRO/QQQ/QLD but with full baseline MaxDD (−55% to −80% on leveraged). Only justifiable if MaxDD tolerance is unlimited.
+4. **NEVER use `dd_pl` alone**. Sample-period-dependent — fires 1-4× over 10y but 11-18× over the 2022-start sample. Looks great in bear-heavy windows, is a no-op in normal ones.
+5. **For UPRO (3× SPY), use `exit` not `hybrid_exit`**. UPRO inherits SPY's 26 round-trips/decade regime-gate whipsaws, which the buy-side hybrid amplifies. Next experiment: try QQQ-MA reference for UPRO, or N-day re-entry delay.
+
+### Key findings worth flagging
+
+- **The regime filter (exit-reenter sell-side) is the single most powerful improvement** for leveraged-ETF DCA — mean MaxDD reduction is 38% across all 5 tickers, vs ~0% from any buy-side rule alone.
+- **Buy-sizing rules don't reduce MaxDD** — MaxDD is dominated by existing capital crashing, not by new capital added at bad prices.
+- **DCA's "bad-entry paradox"** (lesson #47): all 5 tickers had HIGHER Sharpe when DCA started Jan 2022 (right before the worst bear) than when started 5 years earlier. DCA mechanically loves volatility AT THE START and stability AT THE END.
+- **yfinance ETF prices are already net-of-expense-ratio** (lesson #45). Applying ER to backtested returns from yfinance closes double-counts. The 0.84% TQQQ ER cost ~$5,605 on $12k DCA'd over 10y — large in absolute terms but invisible in money-mult thinking.
+
+### Output files (each report directory is self-contained)
+
+| Directory | Contents |
+|---|---|
+| `alphasmart/reports/leveraged_etf_dca/` | 10y DCA baseline analysis: monthly + daily CSVs, equity + drawdown PNGs |
+| `alphasmart/reports/leveraged_etf_dca_2022/` | Same on 2022-01 worst-entry window |
+| `alphasmart/reports/leveraged_etf_dca_dd/` | Double-down on negative P/L% |
+| `alphasmart/reports/leveraged_etf_dca_dd_filt/` | DD + 200d-MA buy-side filter |
+| `alphasmart/reports/leveraged_etf_dca_dd_ath/` | DD triggered by ATH-drawdown |
+| `alphasmart/reports/leveraged_etf_dca_dd_hybrid/` | DD when (ATH ≤ −20% AND price > 200d-MA) |
+| `alphasmart/reports/leveraged_etf_dca_hybrid_exit/` | Buy-side hybrid + sell-side exit-reenter (2022 window) |
+| `alphasmart/reports/leveraged_etf_dca_10y_full/` | All 6 strategies × 5 tickers, full 10y window — the canonical comparison |
 
 ---
 
