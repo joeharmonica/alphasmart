@@ -79,6 +79,10 @@ python -m src.execution.runner_main status
 
 # Lift a halt after operator review
 python -m src.execution.runner_main clear-halt
+
+# Silent-halt alarm — exits 0 if ok, nonzero per failure class:
+#   10=halt_active, 11=state_stale, 12=broker_unreachable, 13=state_missing
+python -m src.execution.runner_main health-check --check-broker
 ```
 
 **State files** live under `../reports/paper_trade/`:
@@ -92,7 +96,15 @@ python -m src.execution.runner_main clear-halt
 **Cron schedule (production, weekdays after US close):**
 
 ```cron
+# Rebalance — weekdays 17:00 local (after US close)
 0 17 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode paper --fetch-before-rebalance >> $HOME/alphasmart/alphasmart/logs/cron.log 2>&1
+
+# Silent-halt alarm — every weekday at 09:00 and 22:00 local. Nonzero exit
+# triggers a macOS notification + appends to logs/health-alerts.log.
+# Catches the lessons.md #42 silent-halt scenario within 8h of the next
+# expected rebalance window. Replace `osascript` with your preferred
+# notifier (Slack webhook, email, etc.) on non-mac hosts.
+0 9,22 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main health-check --check-broker > /tmp/alphasmart_health.json 2>&1 || (cat /tmp/alphasmart_health.json >> $HOME/alphasmart/alphasmart/logs/health-alerts.log && osascript -e "display notification \"AlphaSMART health-check FAILED — see logs/health-alerts.log\" with title \"AlphaSMART\"")
 ```
 
 For full clone-and-resume instructions (migrating the runner to a new machine), see [`../README.md` → "Paper-Trade — Clone & Resume on Another Machine"](../README.md#paper-trade--clone--resume-on-another-machine).

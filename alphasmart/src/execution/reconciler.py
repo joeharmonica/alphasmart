@@ -10,8 +10,17 @@ Drift sources we expect to see:
 
 Drift sources that should halt:
   - Missing fill (broker qty < expected by > threshold)
-  - Phantom position (broker has a symbol the strategy never asked for)
+  - Phantom position (broker has a symbol the strategy never asked for AND
+    no pending SELL is queued to close it)
   - Unknown corporate action (broker reports drastically different qty)
+
+In-flight order classifications (do not halt):
+  - `pending_fill` — expected position absent at broker but a pending BUY
+    of matching size is queued (cross-asset open mid-flight)
+  - `pending_close` — broker holds a position not in target but a pending
+    SELL of matching size is queued (cross-asset close mid-flight). Mirror
+    of `pending_fill`; without it, every cross-asset swap submitted while
+    the market is closed wrote a false-positive halt (lessons.md #43).
 
 Failure escalation per design:
   drift > 1% per-symbol → halt new orders, leave existing positions alone,
@@ -43,8 +52,8 @@ class SymbolDrift:
     broker_qty: float
     drift_qty: float
     drift_pct: float                 # broker_qty - expected_qty / expected_qty (when expected > 0)
-    classification: str              # "ok" | "drift" | "missing" | "phantom" | "pending_fill"
-    pending_open_qty: float = 0.0    # qty currently in unfilled broker orders
+    classification: str              # "ok" | "drift" | "missing" | "phantom" | "pending_fill" | "pending_close"
+    pending_open_qty: float = 0.0    # signed qty currently in unfilled broker orders (BUYs +, SELLs -)
 
 
 @dataclass
@@ -136,13 +145,31 @@ class Reconciler:
                     pending_open_qty=pending_qty,
                 ))
             else:
+                # Broker has a position the strategy doesn't expect.
+                # Symmetric to the pending_fill branch above: if a pending
+                # SELL is queued that will close (or near-close) the position
+                # within the per-symbol threshold, treat it as `pending_close`
+                # rather than `phantom`. Without this, every cross-asset swap
+                # submitted while the market is closed would write a
+                # false-positive halt (lessons.md #43).
                 pos = broker_by_sym[sym]
+                effective_broker = pos.qty + pending_qty   # pending SELL is negative
+                # Residual fraction of original position that would remain post-fill.
+                # Positive only when effective_broker is still on the long side and
+                # comparable in magnitude to pos.qty.
+                residual_pct = (
+                    abs(effective_broker) / abs(pos.qty) if pos.qty != 0 else float("inf")
+                )
+                if pending_qty < 0 and residual_pct <= self.per_symbol_threshold:
+                    classification = "pending_close"
+                else:
+                    classification = "phantom"
                 symbols.append(SymbolDrift(
                     symbol=sym,
                     expected_qty=0.0, broker_qty=pos.qty,
                     drift_qty=pos.qty,
                     drift_pct=float("inf"),
-                    classification="phantom",
+                    classification=classification,
                     pending_open_qty=pending_qty,
                 ))
 
@@ -152,6 +179,7 @@ class Reconciler:
         phantom_syms = [s.symbol for s in symbols if s.classification == "phantom"]
         missing_syms = [s.symbol for s in symbols if s.classification == "missing"]
         pending_syms = [s.symbol for s in symbols if s.classification == "pending_fill"]
+        pending_close_syms = [s.symbol for s in symbols if s.classification == "pending_close"]
 
         # Halt logic (escalation matches design §6 default 4)
         halt_reasons = []
@@ -195,6 +223,7 @@ class Reconciler:
                 "phantom_symbols": phantom_syms,
                 "missing_symbols": missing_syms,
                 "pending_fill_symbols": pending_syms,
+                "pending_close_symbols": pending_close_syms,
                 "should_halt": should_halt,
                 "halt_reason": halt_reason,
                 "state_age_seconds": state_age,

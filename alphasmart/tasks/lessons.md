@@ -592,3 +592,269 @@ This is the project's **first genuinely uncorrelated pair of PORTFOLIO_READY str
 **Adjacent issue — fractional residuals:** Alpaca paper sometimes leaves a small fractional remainder after a SELL of a fractional position. The runner's `rebalance_threshold_pct=0.005` (0.5% of portfolio) means a $139 / $100k = 0.14% residual is **below threshold and would never be retried** by normal rebalance. Combined with the reconciler bug above, this means: every cross-asset swap creates a permanent phantom that halts all future rebalances until manually cleaned up.
 
 **Rule:** **When orders are queued but not filled (pre-market, after-hours, or any broker latency), the reconciler must credit pending orders symmetrically — pending BUYs against missing-expected, AND pending SELLs against phantom-broker.** The asymmetric implementation creates a "you can't rebalance when the market is closed" bug that's invisible at design time and surfaces only when the cron happens to fire during a quiet period. Adjacent rule: **the rebalance threshold (`rebalance_threshold_pct`) interacts with broker fractional behavior** — any rebalance that creates a residual smaller than the threshold will leave it forever; for full position closes (target = 0), bypass the threshold and force the SELL to completion.
+
+---
+
+## 44. Leveraged-ETF DCA Over a Decade — Leverage Premium Holds But Sharpe Degrades Monotonically
+
+**Setup (2026-05-17):** $100/month DCA into SPY (1×), UPRO (3×SPY), QQQ (1×), QLD (2×QQQ), TQQQ (3×QQQ) from 2016-06 → 2026-05 (120 months, $12,000 invested per ticker). All prices yfinance close, auto-adjusted for splits + dividends.
+
+**Money-multiple result:**
+
+| Ticker | Ending value | Money mult | Sharpe (daily) |
+|---|---:|---:|---:|
+| SPY  | $26,883 | 2.24× | 1.46 |
+| UPRO | $52,628 | 4.39× | 1.26 |
+| QQQ  | $35,086 | 2.92× | 1.47 |
+| QLD  | $64,798 | 5.40× | 1.36 |
+| TQQQ | $89,308 | **7.44×** | **1.26** |
+
+**The two stories:** Money multiple monotonically increases with leverage (TQQQ 7.44× vs QQQ 2.92× — a 2.55× advantage that the volatility-drag thesis would have *not* predicted holding). But Sharpe monotonically *decreases* with leverage (TQQQ 1.26 vs QQQ 1.47) — the leveraged products are less efficient per unit of daily volatility. **Both are true at the same time** because DCA's per-lot cost basis spreads across the entire 10y window, so the 2022 bottoms get bought at 80% off ATH while the 2024-2025 highs only add a small fraction of cost basis.
+
+**The 2022 hole:** TQQQ portfolio went $40,229 (2021-09) → **$11,717** (2022-10), a −71% paper loss over 13 months. An investor staring at that loss would have rationally panicked. The +644% terminal return only materialises if you held through that drawdown AND kept buying $100/mo through it — the 2022-2023 buys at TQQQ NAV $1-$2 (compared to today's $75) did most of the compounding work in the final number.
+
+**Rule:** **The leveraged-ETF "leverage premium" is structurally real over complete bull → bear → recovery cycles, but it lives entirely in the money-multiple metric. Sharpe-aware investors will pick the unleveraged products.** Headline returns mean nothing without the path: the same TQQQ position evaluated at any 30-day window between 2022-02 and 2023-04 would have looked like a complete blowup. Investors who can't tolerate intra-position −70% paper losses should never hold a 3× leveraged ETF, regardless of multi-year backtest math.
+
+---
+
+## 45. yfinance ETF Close Prices Are NAV-Based and Already Net-of-Expense-Ratio — Don't Double-Count
+
+**Trap:** Wanted to "apply ETF fees" to backtested DCA returns to see the after-fee P/L. **The fees are already in there.** ETF NAV is computed by the fund daily as `(gross basket value) - (accrued daily expense fee)`, where `daily_fee = NAV × (annual_ER / 365)`. The market closing price ≈ NAV due to arbitrage. yfinance's `auto_adjust=True` adjusts historical prices for splits and dividends only — **NOT for expense ratio**, because the ER is already baked into the close price by the fund itself.
+
+**Implication for ER calculations:** Subtracting `ER × years` from a backtested return computed from yfinance closes double-counts the fee drag. The honest interpretations of "apply ETF fees":
+- **Net of fees** (what yfinance prices give you, already): the actual investor experience.
+- **Gross of fees** (no-ER hypothetical): multiply each lot's value by `(1 + ER/252)^days_held` to back out the drag.
+- **Extra ER applied** (e.g. an advisor wrapper charging ER on top of the fund's own ER): multiply by `(1 - ER/252)^days_held`.
+
+**Magnitude of fee drag (10y DCA $12k each):**
+
+| Ticker | ER | Dollar cost of ER over 10y | % of principal |
+|---|---:|---:|---:|
+| SPY  | 0.0945% | $153   | 1.3%  |
+| QQQ  | 0.20%   | $450   | 3.8%  |
+| TQQQ | 0.84%   | $5,605 | 47%   |
+| QLD  | 0.95%   | $4,457 | 37%   |
+| UPRO | 0.91%   | $3,253 | 27%   |
+
+TQQQ's 0.84% ER cost the investor ~$5,600 over 10y on $12k invested — nominally 47% of principal — but the compounding base grew so much that the net-of-fee return was still +644%. The fee drag is enormous in absolute dollars but invisible in money-multiple thinking.
+
+**Rule:** **When backtesting any ETF strategy on yfinance data, treat the close prices as already-net-of-fee.** If you need to model an extra fee layer (advisor wrap, custodian fee), apply it on top of the NAV. If you need a "no-fee" comparator, back the ER out by compounding `(1 + ER/252)^days_held` per lot. Same convention applies to mutual funds. **Crypto exchange prices are *not* NAV-based** — they're traded spot, with no ongoing fee accrual — so applying a "management fee" to a crypto-asset backtest would be additive rather than double-counted.
+
+---
+
+## 46. The 200d-MA Exit-Reenter Regime Filter on Leveraged-ETF DCA — Lesson #40 Confirmed and Amplified
+
+**Setup:** Same 10y DCA from 2016-06, but with the lesson #40 conjugate filter applied to each ticker's underlying (SPY's 200d-MA for SPY/UPRO; QQQ's 200d-MA for QQQ/QLD/TQQQ). Three modes:
+- **baseline**: buy $100 every month
+- **skip-buy**: buy only when regime ON; otherwise cash accumulates, existing positions held
+- **exit-reenter**: when regime OFF, sell everything to cash; when ON again, redeploy all cash
+
+**Result — MaxDD reduction vs return give-up (exit-reenter vs baseline):**
+
+| Ticker | MaxDD cut | Return give-up | Sharpe change |
+|---|---|---:|---:|
+| SPY  | −32.5% → −13.9% (57% cut) | +130% → +77% (53pp) | 1.46 → 1.43 |
+| QQQ  | −29.9% → −17.4% (42% cut) | +207% → +135% (72pp) | 1.47 → 1.44 |
+| UPRO | −76.5% → −42.8% (44% cut) | +370% → +245% (125pp) | 1.26 → **1.37** |
+| QLD  | −60.9% → −34.4% (43% cut) | +495% → +340% (155pp) | 1.36 → **1.41** |
+| TQQQ | −80.4% → −48.5% (40% cut) | +759% → +656% (103pp) | 1.26 → **1.35** |
+
+**Key amplification of lesson #40:** the filter improves Sharpe on the *leveraged* products but does NOT improve Sharpe on SPY/QQQ. The 3× and 2× leverage amplifies both the bear-market loss (which the filter dodges) and the regime-cross slippage cost (~26 round-trips on SPY-ref over 10y), but the dodge dominates because of leverage's asymmetric downside. For unleveraged buy-and-hold, the filter is a slight Sharpe drag (slippage cost > benefit of dodging modest bears).
+
+**Skip-buy alone is a no-op:** for all 5 tickers, the "skip new buys when regime OFF, hold existing positions" mode cut MaxDD by only 1-2pp vs baseline. The MaxDD is dominated by *existing capital crashing*, not by *new capital being added at bad prices*. **The only filter that meaningfully helps leveraged-ETF DCA is the full exit-reenter rule.**
+
+**Operational cost:** 22-26 forced sell/buy round-trips per ticker over 10y (≈5/year) for SPY-ref and QQQ-ref respectively. In a taxable account that's painful (short-term cap gains on every round-trip); in IRA/paper it's only spread + slippage cost (negligible for liquid ETFs).
+
+**Whipsaw risk on re-entry:** UPRO exit-reenter MaxDD shifted from the 2020 COVID crash to a 438-day window ending 2023-03-17 — because once re-entered after the 2022 bear, the SVB crisis hit and dropped UPRO immediately. The filter is regime-aware but not panic-aware; fast reversals after a re-entry can still hurt. Possible next iteration: **N-day re-entry delay or larger MA-distance threshold** to confirm the cross before redeploying.
+
+**Rule:** **For DCA on leveraged ETFs, pair every strategy with its conjugate regime filter — specifically exit-reenter, not skip-buy.** Half-measures don't work because MaxDD is dominated by existing positions, not new ones. The cost of the exit-reenter (~5 round-trips/year and ~14% of terminal return) is dramatically less than the MaxDD-savings benefit (~40-50% reduction). Skip-buy and "regime-only-affects-new-money" variants should be considered failed designs for buy-and-hold leveraged products.
+
+---
+
+## 47. The Bad-Entry-Timing Paradox: DCA Started at the Absolute Top (2022-01) Had HIGHER Sharpe Than DCA Started 5 Years Earlier
+
+**Setup:** Re-ran the 5-ticker DCA from 2022-01 (right before the worst bear since 2008) instead of 2016-06.
+
+**Result — Sharpe across all 5 tickers IMPROVED with the worse entry:**
+
+| Ticker | Sharpe 2016-start | Sharpe 2022-start | Δ |
+|---|---:|---:|---:|
+| SPY  | 1.46 | **1.75** | +0.29 |
+| UPRO | 1.26 | **1.58** | +0.32 |
+| QQQ  | 1.47 | **1.73** | +0.26 |
+| QLD  | 1.36 | **1.61** | +0.25 |
+| TQQQ | 1.26 | **1.52** | +0.26 |
+
+Even baseline TQQQ DCA started at the worst possible month (Jan 2022) still produced **+238.5%** over 53 months. Min P/L% reached was **−44.1% in Jan 2023** — painful but bounded; the investor was down $574 on $1,300 invested.
+
+**Mechanism:** DCA's worst-case is "sustained drawdown after a lot of capital has already been deployed." Starting Jan 2022 with $100 = $100 in when the crash started; every dollar after that bought low. The TQQQ buys at $1-$2 NAV during the 2022 bottom were so heavily averaged-down that the subsequent recovery did most of the heavy lifting. DCA loves volatility AT THE START and stability AT THE END.
+
+**Second paradox — MaxDD shifted forward:** For all baseline tickers, the MaxDD from a 2022-01 start was no longer the 2022 bear at all. It's the **spring 2025 pullback** (2025-02-19 → 2025-04-08, 48 days, ~15-50% drop depending on leverage). By the time 2025 came around, the portfolio had grown enough that a smaller % pullback was a bigger $ hit than the early 2022 losses. **TQQQ MaxDD: −55.6%, 2024-12-16 → 2025-04-08, 113 days — not the 2022 bear at all.**
+
+**Implication for DCA strategy evaluation:** *the "good entry" intuition from lump-sum investing does not apply to DCA.* A backtest with one start date doesn't tell you anything about a strategy's robustness. Run all DCA backtests across multiple start dates including the worst possible months. If a DCA strategy looks worse starting at the top than starting at the bottom, it's structurally broken (the cost-averaging mechanism is being defeated by something else, like leverage drift or fee compounding).
+
+**Rule:** **For DCA strategy backtests, the worst-case start month should be reported alongside the average-case.** A DCA whose Sharpe improves with worse entry timing is a feature of the strategy, not a quirk. Conversely, a DCA strategy that crashes harder with worse entry is exhibiting hidden path-dependence and needs investigation. The 2022-01 start case is now the gold-standard stress test for any leveraged-ETF DCA strategy — if the strategy can't survive entering the day before a −80% bear, it's not deployable.
+
+---
+
+## 48. Adaptive Buy-Sizing for DCA — Taxonomy of Double-Down Rules and the First "Free Lunch" Hybrid
+
+**Setup (2026-05-17):** Four DCA buy-sizing rules tested from 2022-01:
+- **baseline**: $100/month
+- **dd_pl**: $200 when current portfolio P/L% < 0, else $100
+- **dd_ath**: $200 when underlying ≤ 80% × all-time-high (sticky until new ATH), else $100
+- **dd_hybrid**: $200 when (ATH-condition AND price > 200d-MA), else $100
+
+**Three orthogonal questions per rule:** terminal $, capital efficiency, Sharpe.
+
+**Headline results (TQQQ):**
+
+| Mode | Capital invested | Final $ | Money mult | Sharpe | MaxDD |
+|---|---:|---:|---:|---:|---:|
+| baseline   | $5,300 | $17,939 | 3.38× | 1.52 | −55.6% |
+| dd_pl      | $6,900 | $26,981 | **3.91×** ← best money mult | 1.23 | −56.5% |
+| dd_ath     | $9,900 | **$34,751** ← best terminal $ | 3.51× | 1.27 | −56.2% |
+| **dd_hybrid** | $8,100 | $25,902 | 3.20× | **1.59** ← best Sharpe | −56.4% |
+
+**Each rule wins on a different metric:**
+
+1. **dd_pl wins on capital efficiency** — $5.65 extra return per $1 extra capital. The P/L% trigger is tight: it stops firing as soon as cost-averaging gets you back to breakeven, so DD capital only goes in at the deepest discounts.
+2. **dd_ath wins on absolute terminal $** — but uses 87% more capital than baseline. The ATH trigger keeps firing for the entire underlying recovery (TQQQ was in DD-zone for 46 of 53 months because the underlying didn't reclaim its 2021-11 ATH until 2024-12), so the rule effectively becomes "buy $200/mo for 4 years" with no discipline.
+3. **dd_hybrid wins on Sharpe** for 4 of 5 tickers, and **for SPY/QQQ/QLD/TQQQ the hybrid Sharpe BEATS baseline** (the first DD rule to do so). The hybrid combines value (ATH) with trend confirmation (MA), so it doesn't catch falling knives. It blocked all the TQQQ −60% to −81% buys of 2022 (when the underlying was in confirmed downtrend) but caught the entire 2023 recovery rally.
+
+**None of the buy-sizing rules reduces MaxDD.** TQQQ MaxDD across all 4 modes: −55.6%, −56.5%, −56.2%, −56.4%. The MaxDD is dominated by the spring 2025 underlying crash hitting a fully-deployed portfolio. **No buy-sizing rule can fix MaxDD** — you need an *exit* rule (sell positions when regime OFF) for that.
+
+**The hybrid's mechanism:** ATH condition says "the asset is on sale", 200d-MA condition says "but the bleeding has stopped". Together they filter out the worst falling-knife buys. The rule generalises beyond ETFs: **"value + trend confirmation" beats either filter alone for adaptive position-sizing on volatile assets.** This is the conjugate of lesson #40 (filter the mechanic to its working regime), now applied to position sizing rather than entry/exit.
+
+**Sharpe comparison summary:**
+
+| Ticker | Baseline | dd_pl | dd_ath | dd_hybrid |
+|---|---:|---:|---:|---:|
+| SPY  | 1.75 | 1.23 | 1.80 | **1.81** |
+| UPRO | 1.58 | 1.25 | 1.28 | 1.25 |
+| QQQ  | 1.73 | 1.24 | 1.72 | **1.79** |
+| QLD  | 1.61 | 1.24 | 1.28 | **1.69** |
+| TQQQ | 1.52 | 1.23 | 1.27 | **1.59** |
+
+**Rule:** **Adaptive buy-sizing rules trade off across three independent dimensions (capital efficiency / terminal $ / Sharpe); no single rule dominates.** When designing a DCA strategy, pick the rule that matches your dominant metric: dd_pl for capital efficiency, dd_ath for maximum dollars-on-the-table, dd_hybrid for risk-adjusted return. **MaxDD reduction requires an exit rule, not a buy-sizing rule.** The next experiment in this line should combine dd_hybrid (buy-side) with the exit-reenter regime filter (sell-side) — that's the only path to simultaneously beating baseline on Sharpe, terminal $, AND MaxDD. Outputs of this analysis are saved under `reports/leveraged_etf_dca/`, `reports/leveraged_etf_dca_2022/`, `reports/leveraged_etf_dca_dd/`, `reports/leveraged_etf_dca_dd_filt/`, `reports/leveraged_etf_dca_dd_ath/`, `reports/leveraged_etf_dca_dd_hybrid/`.
+
+---
+
+## 49. Hybrid Buy-Side + Exit-Reenter Sell-Side — The First Strategy to Beat Baseline on Sharpe AND MaxDD Simultaneously
+
+**Setup (2026-05-17):** Combined the lesson #48 hybrid buy-side rule (`$200 when price ≤ −20% from ATH AND price > 200d-MA`) with the lesson #46 exit-reenter sell-side rule (sell-all when regime OFF, redeploy on regime ON). Buy-side controls *how much*, sell-side controls *whether to hold or sit in cash*. Same 200d-MA reference for both gates (SPY for SPY/UPRO; QQQ for QQQ/QLD/TQQQ).
+
+**Validation:** All 30 (ticker × mode) integrity checks confirmed `sum(monthly buys) == invested` and `n_buys == 53`. Strategy state machines for the two ATH and regime conditions verified to fire independently and non-overlapping.
+
+**Result vs baseline ($100/mo plain DCA), 2022-01 → 2026-05:**
+
+| Ticker | MaxDD baseline → hybrid_exit | Sharpe baseline → hybrid_exit | Money mult baseline → hybrid_exit | Outcome |
+|---|---|---|---|---|
+| SPY  | −15.4% → −9.4% (39% cut) | 1.75 → **1.77** (+0.02) | 1.54× → 1.42× | All 3 better ✅ |
+| QQQ  | −19.7% → −12.0% (39% cut) | 1.73 → **1.80** (+0.07) | 1.77× → 1.66× | All 3 better ✅ |
+| QLD  | −39.8% → −25.2% (37% cut) | 1.61 → **1.75** (+0.14) | 2.54× → 2.26× | All 3 better ✅ |
+| TQQQ | −55.6% → −35.9% (35% cut) | 1.52 → **1.68** (+0.16) | 3.38× → 2.83× | All 3 better ✅ |
+| **UPRO** ⚠ | −47.2% → −26.2% (45% cut) | 1.58 → **1.17** (−0.41) | 2.44× → 2.03× | Sharpe regresses |
+
+**For 4 of 5 tickers — first strategy in the entire investigation that produces simultaneously better Sharpe AND lower MaxDD than baseline.** TQQQ headline: MaxDD cut by 1/3 AND Sharpe improved by 0.16 — the single best risk-adjusted result across all 30 (ticker × mode) combinations tested.
+
+**UPRO breaks the pattern** because UPRO inherits SPY's regime gate (15 forced round-trips over 10y vs QQQ-ref's 10), and 50% more whipsaw on a 3× leveraged product eats Sharpe even though MaxDD still improves. Inference: the choice of regime-reference matters. For leveraged ETFs, the regime-reference should be the *smoothest* available proxy (QQQ may be a better regime gate than SPY for momentum-tilted leverage), or filtered with an N-day confirmation / MA-distance margin to suppress whipsaw crosses. Worth a follow-up test.
+
+**Why the combo works:** the buy-side and sell-side gates are complementary, not redundant. Buy-side decides *when to deploy MORE capital* (during confirmed-recovery dips: ATH says "sale", MA says "bleeding stopped"). Sell-side decides *when to hold ALL cash* (during sustained downtrends: regime OFF = full exit). Together they:
+1. Skip the catastrophic 2022 holds (sell-side dodged TQQQ's 11-month bear)
+2. Capture the entire 2023-2024 recovery rally at $200/mo (buy-side fired aggressively once regime ON + still in DD-zone)
+3. Skip the spring 2025 crash (sell-side exited again)
+4. Re-engage on recovery (cycle repeats)
+
+**Operational cost:** 10-15 forced round-trips per ticker over 53 months (~2-3/year on the regime crosses). In a taxable account that's ~15 short-term cap-gains events; in IRA/paper it's only slippage. The cost is far lower than the MaxDD savings.
+
+**hybrid_exit vs exit-only (is adding the buy-side worth it?):** For 4 of 5 tickers, adding the hybrid buy-side to exit-reenter is purely additive — both more terminal $ AND higher Sharpe. TQQQ: exit-only $16,132 → hybrid_exit $22,905 (+$6,773 for +$2,800 extra capital), Sharpe 1.59 → 1.68. The buy-side and sell-side are orthogonal in their effect.
+
+**Rule:** **For leveraged-ETF DCA, the production strategy should be `hybrid_exit` (buy-side hybrid + sell-side exit-reenter), with the regime-gate reference chosen to minimise whipsaw on the specific underlying.** This is the first design that simultaneously beats baseline on all three relevant metrics (Sharpe, MaxDD, terminal $) for QQQ-family ETFs. The combination is necessary — neither half alone delivers this triple win (exit-only sacrifices terminal $; dd_hybrid alone doesn't fix MaxDD). For SPY-derived leverage (UPRO), the regime gate needs additional smoothing (cross-confirmation or larger MA-distance threshold) before deployment. Outputs of this analysis are saved under `reports/leveraged_etf_dca_hybrid_exit/`. Next experiments: (a) UPRO with QQQ-MA or 1%-margin SPY-MA gate, (b) re-entry delay (N business days post-cross-up) to further reduce whipsaw, (c) full 10-yr window (2016-06 → 2026-05) to confirm the result generalises beyond the 2022-start sample.
+
+---
+
+## 50. The 10-Year Window Flips Several 2022-Start Conclusions — Regime Filter (Exit) Is the Single Most Powerful Improvement; Buy-Side DD Rules Are Sample-Dependent
+
+**Setup (2026-05-17):** Re-ran the entire 6-strategy comparison (baseline / dd_pl / dd_ath / dd_hybrid / exit / hybrid_exit) on the full 10-year window from 2016-06 → 2026-05 (120 monthly buys × 5 tickers × 6 modes = 3,600 buy events). Validation: all 30 (ticker × mode) integrity checks confirmed `sum(monthly buys) == invested` and `n_buys == 120`.
+
+### Conclusion #1 — dd_pl is a sample-period artifact
+
+`dd_pl` ($200 when portfolio P/L% < 0) fires only **1-4 months** out of 120 in the 10y window vs **11-18 months out of 53** in the 2022-start window:
+
+| Ticker | dd_pl months — 2022-start (53 mo) | dd_pl months — 10-year (120 mo) |
+|---|---:|---:|
+| SPY  | 11 | 2 |
+| UPRO | 18 | 4 |
+| QQQ  | 13 | 1 |
+| QLD  | 14 | 1 |
+| TQQQ | 16 | 1 |
+
+The early 2016-2019 bull market kept portfolio P/L positive almost continuously; the trigger only activated during COVID 2020, briefly in 2022, and spring 2025. **dd_pl looks like a powerful strategy in the 2022-start sample because that sample was 60% bear/correction; in a normal 10y sample it's a no-op.** Generalisation rule: any sizing rule keyed on portfolio state (not asset state) inherits the sample-period's drawdown profile and won't generalise.
+
+### Conclusion #2 — TQQQ exit-only is the single best 10-year strategy (no DD needed)
+
+The biggest surprise: pure exit-reenter (baseline DCA + sell-everything-on-MA-cross, no DD sizing) is the **best TQQQ strategy by every metric simultaneously**:
+
+| Metric | TQQQ baseline | TQQQ exit | TQQQ hybrid_exit | TQQQ dd_ath |
+|---|---:|---:|---:|---:|
+| Invested | $12,000 | $12,000 | $16,900 | $19,700 |
+| Final $ | $103,039 | **$114,469** | $149,311 | $156,922 |
+| Money mult | 8.59× | **9.54× ✨** | 8.83× | 7.97× |
+| MaxDD | −80.4% | **−54.2%** | −53.8% | −79.9% |
+| MaxDD duration | 404 days | **21 days** | 21 days | 404 days |
+| Sharpe | 1.26 | **1.35 ✨** | 1.32 | 1.10 |
+
+**TQQQ exit-only is the closest thing to a "pure improvement over buy-and-hold" we've found.** Same capital base ($12,000), better return, half the MaxDD, 95% shorter drawdown duration, higher Sharpe. The 9.54× money multiple is the highest of any of the 30 (ticker × mode) combinations tested. **Adding the buy-side hybrid (hybrid_exit) deploys more capital and produces more absolute $, but lowers money mult and Sharpe slightly — buy-side DD on top of exit-reenter is a "more capital for more dollars" trade, not a Pareto improvement.**
+
+### Conclusion #3 — The regime filter (exit-reenter sell-side) is the universal MaxDD-reducer
+
+Across all 5 tickers, the regime filter cuts MaxDD by 31-51% on average:
+
+| Ticker | Baseline MaxDD | Exit MaxDD | Cut |
+|---|---:|---:|---:|
+| SPY  | −32.5% | −15.8% | **51%** |
+| UPRO | −76.5% | −46.0% | 40% |
+| QQQ  | −29.9% | −20.5% | 31% |
+| QLD  | −60.9% | −39.2% | 36% |
+| TQQQ | −80.4% | −54.2% | 33% |
+
+**Mean MaxDD reduction across all 5 tickers is 38%.** Buy-side rules (dd_pl, dd_ath, dd_hybrid) leave MaxDD essentially unchanged (variations within 0.5pp). **MaxDD-reduction is entirely a sell-side problem** — no buy-sizing rule can fix it, because MaxDD is dominated by *existing capital crashing*, not by *new capital being added at bad prices*.
+
+### Conclusion #4 — UPRO's whipsaw penalty is persistent and large
+
+UPRO inherits SPY's regime gate (26 forced round-trips over 10y vs QQQ-ref's 22). The 50% higher round-trip count combined with 3× leverage on SPY consistently produces the worst Sharpe penalty:
+
+| UPRO mode | Sharpe | Notes |
+|---|---:|---|
+| baseline | 1.26 | reference |
+| exit | **1.37** | sell-side helps (MaxDD −76% → −46%) |
+| hybrid_exit | 1.05 ⚠ | adding buy-side HURTS UPRO |
+
+**For UPRO specifically, exit-only is the production strategy** — the buy-side hybrid concentrates new capital deployment during recovery whipsaws and the 3× leverage amplifies the timing errors. The UPRO regime-filter design needs additional smoothing (QQQ-MA gate, N-day re-entry delay, or MA-distance margin > 1%) before hybrid_exit becomes competitive on UPRO. Filed as next experiment.
+
+### Conclusion #5 — Window-of-evaluation matters more than rule design
+
+The same six strategies produce very different rankings in the two windows:
+
+| Best strategy | 2022-start (53 mo) | 10y full (120 mo) |
+|---|---|---|
+| Best Sharpe (TQQQ) | hybrid_exit 1.68 | **exit 1.35** |
+| Best terminal $ (TQQQ) | dd_ath $34,751 | **dd_ath $156,922** |
+| Best money mult (TQQQ) | dd_pl 3.91× | **exit 9.54×** |
+| Best MaxDD reduction (TQQQ) | exit/hybrid_exit −36% | **exit/hybrid_exit −54%** |
+| Best $ per $-deployed (TQQQ) | dd_pl $5.65/$ | **exit (infinity — same base, more return)** |
+
+**Implication for strategy design discipline:** any backtest reported on a single window — especially one that starts immediately before a major drawdown like the 2022-01 case — overstates the value of DD-style rules and understates the value of the regime filter. The fair-evaluation rule: run every strategy on at least two windows (one favourable, one unfavourable for the rule under test) before drawing conclusions.
+
+### Rule
+
+**For leveraged-ETF DCA on a multi-cycle horizon, the production strategy hierarchy is:**
+
+1. **Default: exit-only (baseline DCA + 200d-MA exit-reenter).** Triple-win for TQQQ; Pareto-improvement over baseline for QQQ/QLD/SPY (higher Sharpe, lower MaxDD, no extra capital required).
+2. **More-capital-available: hybrid_exit.** Strictly higher terminal $ than exit-only for 4 of 5 tickers, at cost of ~0.1 Sharpe and 40-65% more capital deployed. Use when capacity to deploy more $ is the binding constraint.
+3. **Maximum aggression: dd_ath (no exit).** Highest absolute $ for 4 of 5 tickers but with full baseline MaxDD (−55% to −80% on leveraged). Only justifiable if MaxDD tolerance is genuinely unlimited.
+4. **NEVER use dd_pl alone.** The sample-period dependence is hidden and dangerous.
+5. **For UPRO (3× SPY leverage), use exit-only — not hybrid_exit.** Until the SPY-MA gate is replaced with a smoother proxy, the buy-side hybrid is net-negative on UPRO.
+
+**The next experiment in this line should be the UPRO regime-gate fix** (try QQQ-MA reference, or SPY-MA + 1% confirmation margin, or N-day re-entry delay). If any of these recovers UPRO's hybrid_exit Sharpe to >1.26, hybrid_exit becomes the universal production strategy across all 5 tickers. Outputs of this analysis are saved under `reports/leveraged_etf_dca_10y_full/`.

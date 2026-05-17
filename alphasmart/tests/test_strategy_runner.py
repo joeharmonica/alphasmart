@@ -256,6 +256,132 @@ def test_pending_orders_prevent_double_submit(spec, broker, tmp_log_root, synthe
     assert r2.orders_skipped_threshold > 0
 
 
+def test_full_close_bypasses_threshold_and_uses_exact_broker_qty(
+    spec, broker, tmp_log_root, synthetic_closes
+):
+    """
+    A2: when a symbol drops out of the target universe and the broker still
+    holds it, the SELL must (a) bypass the rebalance_threshold_pct gate so
+    tail dust below threshold is still closed, and (b) use the broker's
+    EXACT qty so no fractional residual is left behind to flag as phantom.
+    Lessons.md #43.
+    """
+    log = ShadowLog(channel="runner_fullclose", root=tmp_log_root)
+    # Use a HIGH threshold to prove the bypass: 5% notional. Any non-full-close
+    # delta below 5% should be skipped, but full closes must still fire.
+    runner = StrategyRunner(spec=spec, broker=broker, mode="paper", log=log,
+                             rebalance_threshold_pct=0.05)
+
+    # Plant a phantom dust position the runner never asked for. 0.123456 sh
+    # of a non-universe symbol GHOST at ~$100 = $12.35 notional — well below
+    # 5% of $100k = $5,000 threshold.
+    broker.submit_order(AlpacaOrderRequest(symbol="GHOST", qty=0.123456, side="buy"))
+
+    result = runner.rebalance(synthetic_closes)
+
+    # Among the submitted orders there must be a SELL of GHOST with EXACT qty.
+    # Inspect the orders_planned log event for an unambiguous check.
+    log_files = list(tmp_log_root.rglob("runner_fullclose.jsonl"))
+    events = [json.loads(line) for line in log_files[0].read_text().splitlines() if line.strip()]
+    planned = next(e for e in events if e["type"] == "orders_planned")
+    ghost = [o for o in planned["payload"]["orders"] if o["symbol"] == "GHOST"]
+    assert len(ghost) == 1, f"expected SELL of GHOST, got {planned['payload']['orders']}"
+    assert ghost[0]["side"] == "sell"
+    assert ghost[0]["qty"] == pytest.approx(0.123456, abs=1e-6)
+
+    # And the broker should no longer hold GHOST after the paper-mode submit
+    syms = {p.symbol for p in broker.get_positions()}
+    assert "GHOST" not in syms
+
+
+def test_full_close_skipped_when_pending_sell_already_covers(
+    spec, broker, tmp_log_root, synthetic_closes
+):
+    """
+    A2 (subtle): if a pending SELL is already in flight that covers the
+    phantom's qty, do NOT submit a duplicate SELL. The pending order
+    will eventually fill; double-submitting risks oversell + short.
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+
+    log = ShadowLog(channel="runner_fullclose_pending", root=tmp_log_root)
+    runner = StrategyRunner(spec=spec, broker=broker, mode="paper", log=log,
+                             rebalance_threshold_pct=0.005)
+
+    # Broker holds GHOST and has a pending SELL of equal qty
+    broker.submit_order(AlpacaOrderRequest(symbol="GHOST", qty=5.0, side="buy"))
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-ghost-sell", client_order_id="cid", symbol="GHOST",
+        qty=5.0, side="sell", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+
+    runner.rebalance(synthetic_closes)
+
+    log_files = list(tmp_log_root.rglob("runner_fullclose_pending.jsonl"))
+    events = [json.loads(line) for line in log_files[0].read_text().splitlines() if line.strip()]
+    planned = next(e for e in events if e["type"] == "orders_planned")
+    ghost = [o for o in planned["payload"]["orders"] if o["symbol"] == "GHOST"]
+    assert ghost == [], f"should not double-submit GHOST sell; got {ghost}"
+
+
+def test_full_close_emits_for_partial_pending_sell(
+    spec, broker, tmp_log_root, synthetic_closes
+):
+    """
+    A2: if pending SELL only partially covers the phantom, emit a SELL for
+    the residual qty (broker_qty + pending_signed, where pending_signed<0).
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+
+    log = ShadowLog(channel="runner_fullclose_partial", root=tmp_log_root)
+    runner = StrategyRunner(spec=spec, broker=broker, mode="paper", log=log,
+                             rebalance_threshold_pct=0.005)
+
+    # Broker holds 10 GHOST; only 3 already queued for SELL → still need 7 more
+    broker.submit_order(AlpacaOrderRequest(symbol="GHOST", qty=10.0, side="buy"))
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-ghost-partial", client_order_id="cid", symbol="GHOST",
+        qty=3.0, side="sell", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+
+    runner.rebalance(synthetic_closes)
+
+    log_files = list(tmp_log_root.rglob("runner_fullclose_partial.jsonl"))
+    events = [json.loads(line) for line in log_files[0].read_text().splitlines() if line.strip()]
+    planned = next(e for e in events if e["type"] == "orders_planned")
+    ghost = [o for o in planned["payload"]["orders"] if o["symbol"] == "GHOST"]
+    assert len(ghost) == 1
+    assert ghost[0]["qty"] == pytest.approx(7.0, abs=1e-6)
+    assert ghost[0]["side"] == "sell"
+
+
+def test_partial_reduction_still_gated_by_threshold(
+    spec, broker, tmp_log_root, synthetic_closes
+):
+    """
+    A2 negative: a partial reduction (target_w > 0 but smaller than current_w)
+    is NOT a full close and must still respect the threshold gate. This
+    confirms the new branch is scoped to FULL exits only.
+    """
+    log = ShadowLog(channel="runner_partial", root=tmp_log_root)
+    runner = StrategyRunner(spec=spec, broker=broker, mode="paper", log=log,
+                             rebalance_threshold_pct=0.05)
+    # First fill in the top-K positions
+    runner.rebalance(synthetic_closes)
+
+    # Re-run with the same data → all targets unchanged → small deltas only.
+    # The threshold is 5% of portfolio, so the small drifts must all be skipped
+    # (this is the unchanged baseline behaviour of test_rebalance_threshold_skips_dust_trades
+    # but with the explicit assertion that no full-close branch was triggered).
+    result = runner.rebalance(synthetic_closes)
+    assert result.orders_submitted == 0
+    assert result.orders_skipped_threshold > 0
+
+
 def test_log_records_rebalance_lifecycle(runner, synthetic_closes, tmp_log_root):
     runner.rebalance(synthetic_closes)
     log_files = list(tmp_log_root.rglob("runner_test.jsonl"))

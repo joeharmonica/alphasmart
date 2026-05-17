@@ -397,6 +397,135 @@ def cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+# ---------------------------------------------------------------------------
+# Health check (A3 — silent-halt alarm, lessons.md #42)
+# ---------------------------------------------------------------------------
+
+# Exit codes: distinct per failure class so a wrapping cron / monitor can
+# alert with specific severity.
+HEALTH_OK = 0
+HEALTH_HALT_ACTIVE = 10        # halt file present — strategy is paused
+HEALTH_STATE_STALE = 11        # last_updated_utc older than threshold
+HEALTH_BROKER_UNREACHABLE = 12  # broker check requested and failed
+HEALTH_STATE_MISSING = 13      # never-run channel; treat as warn unless allowed
+
+
+def _run_health_check(
+    spec: StrategySpec,
+    *,
+    max_state_age_hours: float,
+    check_broker: bool,
+    allow_no_state: bool,
+) -> tuple[int, dict]:
+    """
+    Pure function so tests can call it directly. Returns (exit_code, payload).
+
+    Default `max_state_age_hours` is calibrated to the equity cron schedule
+    (weekdays 21:00 local). Last successful Friday run is ~72h old by Monday
+    21:00; an 80h default catches the case "Monday's run failed" within 8h.
+    """
+    now = datetime.now(timezone.utc)
+    state = StateStore(channel=spec.name)
+    state_root = state._root
+    halt = read_halt(state_root, spec.name)
+    record = state.read()
+
+    payload: dict = {
+        "channel": spec.name,
+        "checked_at_utc": now.isoformat(),
+        "max_state_age_hours": max_state_age_hours,
+        "halt": {"active": halt is not None, "details": asdict(halt) if halt else None},
+        "state": {"present": record is not None},
+        "broker": {"checked": False},
+        "issues": [],
+    }
+
+    if halt is not None:
+        payload["issues"].append({
+            "code": "halt_active",
+            "severity": "critical",
+            "detail": f"halt file present: reason='{halt.reason}' since {halt.halted_at_utc}",
+        })
+
+    state_age_hours: Optional[float] = None
+    if record is None:
+        payload["state"]["last_updated_utc"] = None
+        if not allow_no_state:
+            payload["issues"].append({
+                "code": "state_missing",
+                "severity": "warn",
+                "detail": "no state file — channel has never been run",
+            })
+    else:
+        try:
+            state_dt = datetime.fromisoformat(record.last_updated_utc)
+            state_age_hours = (now - state_dt).total_seconds() / 3600.0
+        except (ValueError, TypeError):
+            state_age_hours = None
+        payload["state"]["last_updated_utc"] = record.last_updated_utc
+        payload["state"]["age_hours"] = state_age_hours
+        payload["state"]["rebalance_id"] = record.rebalance_id
+        payload["state"]["n_positions"] = len(record.positions)
+        if state_age_hours is not None and state_age_hours > max_state_age_hours:
+            payload["issues"].append({
+                "code": "state_stale",
+                "severity": "critical",
+                "detail": (
+                    f"last_updated_utc is {state_age_hours:.1f}h old "
+                    f"(> {max_state_age_hours}h threshold) — cron likely failed"
+                ),
+            })
+
+    if check_broker:
+        payload["broker"]["checked"] = True
+        try:
+            cfg = AlpacaConfig.from_env()
+            broker = AlpacaPaperBroker(config=cfg, mock=False)
+            account = broker.get_account()
+            payload["broker"]["status"] = account.status
+            payload["broker"]["equity"] = account.equity
+            payload["broker"]["trading_blocked"] = account.trading_blocked
+            if account.trading_blocked:
+                payload["issues"].append({
+                    "code": "broker_trading_blocked",
+                    "severity": "critical",
+                    "detail": "broker reports trading_blocked=true",
+                })
+        except Exception as exc:  # noqa: BLE001 — broker SDK can raise anything
+            payload["broker"]["error"] = str(exc)
+            payload["issues"].append({
+                "code": "broker_unreachable",
+                "severity": "critical",
+                "detail": f"broker get_account failed: {exc}",
+            })
+
+    # Decide exit code by precedence (most-actionable first)
+    codes_present = {i["code"] for i in payload["issues"]}
+    if "halt_active" in codes_present:
+        return HEALTH_HALT_ACTIVE, payload
+    if "state_stale" in codes_present:
+        return HEALTH_STATE_STALE, payload
+    if "broker_unreachable" in codes_present or "broker_trading_blocked" in codes_present:
+        return HEALTH_BROKER_UNREACHABLE, payload
+    if "state_missing" in codes_present:
+        return HEALTH_STATE_MISSING, payload
+    return HEALTH_OK, payload
+
+
+def cmd_health_check(args: argparse.Namespace) -> int:
+    spec = build_equity_spec()
+    exit_code, payload = _run_health_check(
+        spec,
+        max_state_age_hours=args.max_state_age_hours,
+        check_broker=args.check_broker,
+        allow_no_state=args.allow_no_state,
+    )
+    payload["exit_code"] = exit_code
+    out_stream = sys.stdout if exit_code == HEALTH_OK else sys.stderr
+    print(json.dumps(payload, indent=2, default=str), file=out_stream)
+    return exit_code
+
+
 def cmd_clear_halt(args: argparse.Namespace) -> int:
     spec = build_equity_spec()
     state = StateStore(channel=spec.name)
@@ -444,6 +573,22 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_ch = sub.add_parser("clear-halt", help="Remove the halt file (after operator review).")
     p_ch.set_defaults(func=cmd_clear_halt)
+
+    p_hc = sub.add_parser(
+        "health-check",
+        help=("Probe halt file, state-file age, and (optionally) broker reachability. "
+              "Exit codes: 0=ok, 10=halt_active, 11=state_stale, 12=broker_unreachable, "
+              "13=state_missing. Designed for cron — pipe nonzero exits to a notifier."),
+    )
+    p_hc.add_argument("--max-state-age-hours", type=float, default=80.0,
+                      help=("Alarm if state file's last_updated_utc is older than this "
+                            "many hours. Default 80h covers a normal Mon-Fri 21:00 cron's "
+                            "weekend gap (~72h) plus 8h of slack."))
+    p_hc.add_argument("--check-broker", action="store_true",
+                      help="Also probe broker get_account; nonzero on failure.")
+    p_hc.add_argument("--allow-no-state", action="store_true",
+                      help="Treat a missing state file as ok (e.g. before first run).")
+    p_hc.set_defaults(func=cmd_health_check)
 
     return p
 
