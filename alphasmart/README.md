@@ -31,7 +31,7 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **9 — First uncorrelated pair** | Equity xsec mom + crypto xsec mom, monthly ρ=0.40, var-reduction 32% | ✅ **2026-05-03 — 2 of ≥3 needed (lesson #39)** |
 | **10 — Regime filter** | Asset > 200d-MA gate (SPY for equity, BTC for crypto) | ✅ **2026-05-03 — Sharpe +0.4 to +0.5, MaxDD halved, 2022 dodged (lesson #40)** |
 | 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$100k, top-5 mega-cap basket; see snapshot below |
-| **Operational hardening** | A1 reconciler pending_close, A2 full-close exact-qty, A3 health-check alarm | ✅ Merged 2026-05-17 ([lessons.md #42-#43, #49-#50](tasks/lessons.md)) |
+| **Operational hardening** | A1-A5 reconciler false-positive halt closures + A3 health-check + cron→launchd migration | ✅ Merged 2026-05-17 → 2026-05-18 ([lessons.md #42-#43, #49-#52](tasks/lessons.md)) |
 | **Research: leveraged-ETF DCA** | 6 strategy variants × 5 tickers (SPY/UPRO/QQQ/QLD/TQQQ), 10y window | ✅ Merged 2026-05-17 ([lessons.md #44-#50](tasks/lessons.md), reports under `reports/leveraged_etf_dca*/`) |
 | 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |
 

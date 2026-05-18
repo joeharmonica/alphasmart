@@ -18,7 +18,7 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **Steps 3–5** | Regime filter, V2 composites, intraday mini-batch | ✅ 2026-04-07 |
 | 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$100k, top-5 mega-cap basket |
 | 6 — Live Deployment | Real capital, broker integration | 🔜 Planned |
-| **Operational hardening** | A1/A2/A3 fixes (reconciler, full-close, health-check) | ✅ Merged 2026-05-17 ([lessons.md #42-#43](alphasmart/tasks/lessons.md), [#49-#50](alphasmart/tasks/lessons.md)) |
+| **Operational hardening** | A1-A5 reconciler fixes + A3 health-check + launchd migration | ✅ Merged 2026-05-17 → 2026-05-18 ([lessons.md #42-#43, #49-#52](alphasmart/tasks/lessons.md)) |
 | **Research: leveraged-ETF DCA** | 10y DCA backtest, 6 strategy variants × 5 tickers | ✅ Merged 2026-05-17 ([lessons.md #44-#50](alphasmart/tasks/lessons.md), reports under `alphasmart/reports/leveraged_etf_dca*/`) |
 
 > The current paper-trade run uses the equity leg only (`equity_xsec_momentum_B`): **17-symbol** mega-cap cross-sectional 6-month momentum, top-5 equal-weight, monthly rebalance, gated by SPY > 200d-MA. Universe v2 (2026-05-11) added AMD + LLY for a −2.3pp MaxDD / +0.7pp CAGR trade-off; see `alphasmart/tasks/strategies.md` for the universe-history audit trail and `alphasmart/tasks/paper_trade_design.md` for the full design and pass/fail rubric.
@@ -36,11 +36,26 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 
 Last successful rebalance: **2026-05-18** — caught up via manual `launchctl kickstart` of the new `com.alphasmart.rebalance` LaunchAgent. Completed the universe-v2 target by selling QQQ and buying NVDA (4 orders, all filled at market open). Scheduler migrated from cron → launchd the same day (lessons.md #51) after three observed silent-failures on cron over a week. The `--stale-after-hours 50` flag now absorbs the HK-21:00 = ET-09:00 pre-market timing gap.
 
+### Operational hardening journey (2026-05-11 → 2026-05-18, lessons #42–#52)
+
+A one-week sprint closed every false-positive halt class observed in production paper trading, plus the macOS scheduler-reliability issue underneath them. Each fix surfaced the next:
+
+| Day | Symptom | Root cause | Fix | Lesson |
+|---|---|---|---|---|
+| 5-07 → 5-11 | cron silently halted 4 days | preflight `cash_buffer` check incompatible with 100%-allocated strategy | loosen `min_cash_buffer_pct` to −0.02; better future fix = structural cash buffer in strategy spec | [#42](alphasmart/tasks/lessons.md) |
+| 5-11 | every cross-asset swap pre-market wrote phantom-halt | reconciler didn't credit pending SELLs against phantom-broker | A1: new `pending_close` classification; A2: full closes bypass threshold + use exact broker qty | [#43](alphasmart/tasks/lessons.md) |
+| 5-13 → 5-18 | cron daemon went silent 3x in a week after sleep/wake | macOS cron is legacy; doesn't re-read crontab on respawn | A3: silent-halt alarm (health-check + osascript notifier); migrate scheduler cron → launchd | [#51](alphasmart/tasks/lessons.md) |
+| 5-18 21:50 | clean 4-order rebalance triggered halt | reconciler ran in pre-fill window; drift-branch didn't credit pending corrective orders | A4: new `pending_adjust` classification (mirror of A1 logic in the drift branch) | [#52](alphasmart/tasks/lessons.md) |
+| 5-18 22:09 | no-op rebalance against on-target basket still halted | reconciler's 1% qty threshold tighter than runner's $-based 2.5% no-trade band | A5: bump `DEFAULT_PER_SYMBOL_DRIFT_HALT_PCT` 0.01 → 0.03 with derivation comment | [#52](alphasmart/tasks/lessons.md) |
+| 5-18 22:11 | clean no-op no halt | (verification) | live-confirmed all fixes; LaunchAgents at exit 0 | — |
+
+**Net outcome:** the reconciler now correctly distinguishes four in-flight order classes (`pending_fill` / `pending_close` / `pending_adjust` / `ok-within-runner-skip-band`) from genuine drift / phantom / missing scenarios that *should* halt. Real failures (corporate actions, unauthorized trades, broker corruption) still halt because they exceed thresholds by design — the wider 3% drift threshold doesn't unguard against any failure mode the strategy itself wouldn't have caught.
+
 ---
 
 ## Paper-Trade — Clone & Resume on Another Machine
 
-The paper-trade orchestrator is `alphasmart/src/execution/runner_main.py`, scheduled by cron. State lives in `reports/paper_trade/` (committed) and the local OHLCV DB `alphasmart/alphasmart_dev.db` (gitignored — rebuild on each machine via `runner_main fetch`). Secrets live in `alphasmart/.env` (gitignored — copy from old machine or recreate from `.env.example`). Source of truth for actual positions is the Alpaca paper account; the local state file is a cache that the reconciler cross-checks every rebalance.
+The paper-trade orchestrator is `alphasmart/src/execution/runner_main.py`, scheduled by **launchd on macOS** (canonical, since 2026-05-18) or **cron on Linux** (fallback). See "Scheduling" below for both. State lives in `reports/paper_trade/` (committed) and the local OHLCV DB `alphasmart/alphasmart_dev.db` (gitignored — rebuild on each machine via `runner_main fetch`). Secrets live in `alphasmart/.env` (gitignored — copy from old machine or recreate from `.env.example`). Source of truth for actual positions is the Alpaca paper account; the local state file is a cache that the reconciler cross-checks every rebalance.
 
 ### One-time migration steps
 
@@ -143,11 +158,11 @@ rm ~/Library/LaunchAgents/com.alphasmart.*.plist
 0 9,22 * * 1-5 $HOME/alphasmart/alphasmart/scripts/healthcheck_wrapper.sh
 ```
 
-> ✅ **Pre-market rebalance is safe** (closed by lessons #43 / A1 / A2, merged to main 2026-05-17). The reconciler credits pending SELLs as `pending_close` (mirror of the existing `pending_fill` branch), and full closes use the broker's exact qty + bypass the rebalance threshold so fractional residuals get cleaned up in one pass. Older clones pre-this-commit can still write a false-positive halt — pull main and re-run to remove the caveat.
+> ✅ **All four reconciler false-positive halt classes closed** (A1–A5, lessons #42 / #43 / #52). Pending BUYs credit against missing-expected (`pending_fill`); pending SELLs credit against phantom-broker (`pending_close`); pending corrective orders credit against drift-broker (`pending_adjust`); the per-symbol drift threshold (3% default) is now aligned with the strategy's `$-based` no-trade band so the reconciler won't halt on drifts the runner intentionally leaves untouched. Full closes use exact broker qty + bypass rebalance threshold (A2) so fractional residuals get cleaned up in one pass. Live-verified by three sequential `launchctl kickstart` runs on 2026-05-18 (each exposing one class, each fixed and re-verified). Older clones pre-this-commit can still false-halt — pull main.
 >
-> ✅ **Silent halts are alarmed** (A3, merged same commit). The `health-check` subcommand returns distinct exit codes per failure class — wired via `scripts/healthcheck_wrapper.sh` (the launchd entrypoint) which writes to `logs/health-alerts.log` and fires a macOS notification on nonzero exit.
+> ✅ **Silent halts are alarmed** (A3, lessons #42). The `health-check` subcommand returns distinct exit codes per failure class — wired via `scripts/healthcheck_wrapper.sh` (the launchd entrypoint) which writes to `logs/health-alerts.log` and fires a macOS notification on nonzero exit.
 >
-> ✅ **macOS scheduler is launchd, not cron** (since 2026-05-18). After three observed cron silent-failures over a week (daemon respawning post sleep/wake without re-reading the crontab), migrated to two LaunchAgents under `~/Library/LaunchAgents/`. launchd integrates with the unified log, survives sleep/wake, and runs catch-up jobs.
+> ✅ **macOS scheduler is launchd, not cron** (since 2026-05-18, lessons #51). After three observed cron silent-failures over a week (daemon respawning post sleep/wake without re-reading the crontab), migrated to two LaunchAgents under `~/Library/LaunchAgents/`. launchd integrates with the unified log, survives sleep/wake, and runs catch-up jobs.
 
 **Verify the scheduled run fired:**
 
