@@ -858,3 +858,45 @@ The same six strategies produce very different rankings in the two windows:
 5. **For UPRO (3× SPY leverage), use exit-only — not hybrid_exit.** Until the SPY-MA gate is replaced with a smoother proxy, the buy-side hybrid is net-negative on UPRO.
 
 **The next experiment in this line should be the UPRO regime-gate fix** (try QQQ-MA reference, or SPY-MA + 1% confirmation margin, or N-day re-entry delay). If any of these recovers UPRO's hybrid_exit Sharpe to >1.26, hybrid_exit becomes the universal production strategy across all 5 tickers. Outputs of this analysis are saved under `reports/leveraged_etf_dca_10y_full/`.
+
+---
+
+## 51. macOS `cron` Is Not a Reliable Scheduler — Migrate to launchd for Production
+
+**Symptom (2026-05-13 → 2026-05-18, three observed incidents):** the `/usr/sbin/cron` daemon went silent after macOS sleep/wake cycles. Crontab was unchanged (`crontab -l` showed both production lines), the daemon was running (`pgrep cron` found PID), but no scheduled jobs fired — confirmed by:
+- `logs/cron.log` untouched for days
+- `/tmp/alphasmart_health.json` absent (health-check never wrote it)
+- `log show --predicate 'process == "cron"' --last 24h` returned empty
+- State file's `last_updated_utc` slipped 3-7 days behind
+
+Each time, the workaround was to **reinstall the crontab** (`crontab /tmp/cronfile.txt`) which forced cron to re-read the file. A simple one-shot probe (`{minute} {hour} * * * /bin/date > /tmp/probe.txt`) fired correctly within 1 minute of install, proving the daemon was alive — it just wasn't honouring the existing crontab.
+
+**Root cause:** modern macOS treats `/usr/sbin/cron` as a legacy compatibility shim. The daemon is spawned by launchd-on-demand but doesn't re-stat the crontab file on every wake cycle. After a sleep+wake, the daemon's in-memory schedule can become stale, and on system reboot the daemon's auto-spawn doesn't read `/var/at/tabs/<user>` reliably. Apple has been deprecating `cron` in favour of launchd for a decade; tooling like Homebrew also migrated.
+
+**Migration (2026-05-18):** replaced both crontab entries with two LaunchAgents under `~/Library/LaunchAgents/`:
+
+| LaunchAgent | Replaces | Trigger |
+|---|---|---|
+| `com.alphasmart.rebalance` | weekday-21:00 paper rebalance | `StartCalendarInterval` × 5 weekday entries |
+| `com.alphasmart.healthcheck` | weekday 09:00 + 22:00 silent-halt alarm | `StartCalendarInterval` × 10 entries; runs `scripts/healthcheck_wrapper.sh` for the `\|\| notification` shell logic that doesn't fit cleanly in a plist |
+
+**Why launchd works where cron doesn't:**
+- Survives sleep/wake — launchd is the OS-level supervisor, knows when the system was unavailable
+- `StartCalendarIntervalRunAtLoadIfMissed` flag lets you catch up missed runs (off by default — set if you want it)
+- Integrates with the unified log so `log show --predicate 'subsystem CONTAINS "com.alphasmart"'` shows what fired and when
+- `launchctl list | grep alphasmart` shows the last exit code and PID per agent
+- `launchctl kickstart -k gui/<uid>/<label>` lets you manually trigger a run for testing
+
+**Plist + wrapper script committed to repo** at `scripts/launchd/*.plist` and `scripts/healthcheck_wrapper.sh` so a fresh clone has the canonical install templates. The README's "Scheduling" section documents the install/uninstall/verify commands. Linux clones fall back to cron with the equivalent two lines.
+
+**Verification:** kickstart of the rebalance LaunchAgent on 2026-05-18 21:50 (Mon, US market open) successfully:
+1. Ran preflight (6/6 OK with `--stale-after-hours 50`)
+2. Submitted 4 orders (QQQ → NVDA swap + AMD/GOOG adjustments)
+3. All filled within 2s at market open
+4. State file updated, halt cleared (reconciler false-positive separately filed — see below)
+
+Kickstart of the healthcheck LaunchAgent correctly returned exit code 11 (`state_stale`) because the state was 96h old at the time, well over the 80h default threshold, and wrote the alert to `logs/health-alerts.log` via the wrapper.
+
+**Adjacent follow-up issue (filed for A4):** the kickstart rebalance wrote a false-positive halt with `per_symbol_drift=0.0135>0.01; phantom_symbols=['QQQ']`. The phantom flag is the SAME class of bug A1 closed for the "not in target + pending SELL" case — but in the *drift* branch of the reconciler (symbols that are BOTH in `expected` and `broker_by_sym`), pending corrective orders are NOT credited before classification. So a freshly-submitted rebalance briefly shows drift > threshold for symbols with pending fills, even when the orders will resolve the drift in seconds. **A4 (filed):** extend the `_classify_match` pathway to credit pending qty before drift classification, mirroring the pending_fill / pending_close logic in the other two branches.
+
+**Rule:** **On macOS, never schedule production jobs with cron. Use launchd with versioned plists committed to the repo.** Cron will appear to work indefinitely, then silently stop after a system event you don't notice for days. If a project ships with cron documentation only, treat it as a Linux-first project — on macOS, add launchd as the canonical path and demote cron to "fallback for non-macOS hosts." A health-check / silent-halt alarm is mandatory regardless of scheduler choice (lessons #42), but launchd makes silent failures far less likely in the first place.

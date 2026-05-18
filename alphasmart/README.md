@@ -35,18 +35,18 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **Research: leveraged-ETF DCA** | 6 strategy variants × 5 tickers (SPY/UPRO/QQQ/QLD/TQQQ), 10y window | ✅ Merged 2026-05-17 ([lessons.md #44-#50](tasks/lessons.md), reports under `reports/leveraged_etf_dca*/`) |
 | 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |
 
-### Latest paper-trade snapshot (live broker, 2026-05-17)
+### Latest paper-trade snapshot (live broker, 2026-05-18 post-rebalance)
 
 | Symbol | Qty | Market value | Weight | Unrealized P/L |
 |---|---:|---:|---:|---:|
-| GOOG | 52.68 | $20,720.68 | 20.66% | +$528 (+2.6%) |
-| QQQ | 28.96 | $20,528.88 | 20.47% | +$895 (+4.6%) |
-| AVGO | 48.02 | $20,417.29 | 20.36% | +$138 (+0.7%) |
-| ASML | 13.28 | $19,939.92 | 19.88% | +$893 (+4.7%) |
-| AMD | 45.24 | $19,188.23 | 19.13% | −$1,854 (−8.8%) |
-| **Total equity** | | **$100,297.96** | 100% | |
+| AVGO | 48.02 | $20,177.67 | 20.05% | −$102 (−0.5%) |
+| AMD | 47.07 | $20,163.31 | 20.04% | −$1,657 (−7.6%) |
+| NVDA | 89.10 | $20,128.18 | 20.00% | +$100 (+0.5%) |
+| GOOG | 50.11 | $20,112.75 | 19.99% | +$905 (+4.7%) |
+| ASML | 13.28 | $19,827.99 | 19.70% | +$781 (+4.1%) |
+| **Total equity** | | **$100,635.98** | 100% | |
 
-Last successful rebalance: **2026-05-11** (AMZN → AMD swap). Last cron: Fri 2026-05-15 21:00 local — preflight blocked on `data_freshness 37h > 36h` (no orders, no halt). **Operational note:** for hosts in UTC+5 or further east, 21:00 local fires before US market open and may consistently trip the freshness preflight; use `--stale-after-hours 50` or move the cron to after US close in your TZ. Filed as next operational tweak. The post-merge A1/A2/A3 stack ensures any halts that *do* fire are now alarmed within 8h via `health-check`.
+Last successful rebalance: **2026-05-18** (catch-up via launchd kickstart — QQQ → NVDA swap completing the universe-v2 target). Live broker now holds AMD/ASML/AVGO/GOOG/NVDA each ~20%. Scheduler was migrated from `cron` to `launchd` the same day (lessons.md #51) after three observed cron silent-failures in a week; current schedule fires reliably with `--stale-after-hours 50` to absorb the HK-21:00 = ET-09:00 pre-market timing gap.
 
 ### Leveraged-ETF DCA research summary (2026-05-17)
 
@@ -123,19 +123,18 @@ python -m src.execution.runner_main health-check --check-broker
 
 **Strategy spec (built-in):** `equity_xsec_momentum_B` — 15-symbol mega-cap cross-sectional 6-month momentum, top-5 equal-weight, 21-day rebalance, gated by SPY > 200d-MA. Defined in `src/execution/runner_main.py::build_equity_spec`. See `tasks/paper_trade_design.md` for the full design, pre-flight checks, and 7-day shadow / 30-day paper pass rubric.
 
-**Cron schedule (production, weekdays after US close):**
+**Scheduler — macOS launchd (canonical, since 2026-05-18):**
 
-```cron
-# Rebalance — weekdays 17:00 local (after US close)
-0 17 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode paper --fetch-before-rebalance >> $HOME/alphasmart/alphasmart/logs/cron.log 2>&1
+Two LaunchAgents under `~/Library/LaunchAgents/`. Templates committed at `scripts/launchd/`. See the outer [`README.md` → "Scheduling"](../README.md#scheduling) for full install/uninstall/verification commands.
 
-# Silent-halt alarm — every weekday at 09:00 and 22:00 local. Nonzero exit
-# triggers a macOS notification + appends to logs/health-alerts.log.
-# Catches the lessons.md #42 silent-halt scenario within 8h of the next
-# expected rebalance window. Replace `osascript` with your preferred
-# notifier (Slack webhook, email, etc.) on non-mac hosts.
-0 9,22 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main health-check --check-broker > /tmp/alphasmart_health.json 2>&1 || (cat /tmp/alphasmart_health.json >> $HOME/alphasmart/alphasmart/logs/health-alerts.log && osascript -e "display notification \"AlphaSMART health-check FAILED — see logs/health-alerts.log\" with title \"AlphaSMART\"")
-```
+| LaunchAgent | Schedule | Purpose |
+|---|---|---|
+| `com.alphasmart.rebalance` | Weekdays 21:00 local | Paper-mode rebalance with `--fetch-before-rebalance --stale-after-hours 50` |
+| `com.alphasmart.healthcheck` | Weekdays 09:00 + 22:00 local | Probe halt-file + state-age + broker reachability via `scripts/healthcheck_wrapper.sh`; nonzero exit → log + macOS notification |
+
+**Why launchd over cron on macOS:** macOS `cron` goes silent after sleep/wake events without re-reading the crontab on respawn (lessons.md #51). launchd survives sleep/wake and integrates with the unified log. The previous cron-based schedule was migrated 2026-05-18 after three observed silent-failure incidents in a week.
+
+**Linux fallback:** the same schedule can be expressed in cron — see outer README. The shell wrapper (`scripts/healthcheck_wrapper.sh`) is shared between launchd and cron paths so the alerting logic is identical.
 
 For full clone-and-resume instructions (migrating the runner to a new machine), see [`../README.md` → "Paper-Trade — Clone & Resume on Another Machine"](../README.md#paper-trade--clone--resume-on-another-machine).
 

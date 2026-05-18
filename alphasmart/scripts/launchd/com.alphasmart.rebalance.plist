@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.alphasmart.rebalance</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/Users/joepong/alphasmart/alphasmart/venv/bin/python</string>
+        <string>-m</string>
+        <string>src.execution.runner_main</string>
+        <string>rebalance</string>
+        <string>--mode</string>
+        <string>paper</string>
+        <string>--fetch-before-rebalance</string>
+        <string>--stale-after-hours</string>
+        <string>50</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/joepong/alphasmart/alphasmart</string>
+
+    <key>StandardOutPath</key>
+    <string>/Users/joepong/alphasmart/alphasmart/logs/launchd_rebalance.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/joepong/alphasmart/alphasmart/logs/launchd_rebalance.log</string>
+
+    <!-- Weekdays at 21:00 local time. Equivalent to cron `0 21 * * 1-5`.
+         Weekday 1=Mon, 5=Fri in launchd. -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>21</integer><key>Minute</key><integer>0</integer></dict>
+    </array>
+
+    <!-- If a scheduled time was missed while the Mac was asleep/off,
+         fire as soon as it wakes (rather than skipping until next interval). -->
+    <key>StartCalendarIntervalRunAtLoadIfMissed</key>
+    <false/>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/joepong/alphasmart/alphasmart/venv/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>

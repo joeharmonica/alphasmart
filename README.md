@@ -23,18 +23,18 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 
 > The current paper-trade run uses the equity leg only (`equity_xsec_momentum_B`): **17-symbol** mega-cap cross-sectional 6-month momentum, top-5 equal-weight, monthly rebalance, gated by SPY > 200d-MA. Universe v2 (2026-05-11) added AMD + LLY for a −2.3pp MaxDD / +0.7pp CAGR trade-off; see `alphasmart/tasks/strategies.md` for the universe-history audit trail and `alphasmart/tasks/paper_trade_design.md` for the full design and pass/fail rubric.
 
-### Latest paper-trade snapshot (live broker, 2026-05-17)
+### Latest paper-trade snapshot (live broker, 2026-05-18 post-rebalance)
 
 | Symbol | Qty | Market value | Weight | Unrealized P/L |
 |---|---:|---:|---:|---:|
-| GOOG | 52.68 | $20,720.68 | 20.66% | +$528 (+2.6%) |
-| QQQ | 28.96 | $20,528.88 | 20.47% | +$895 (+4.6%) |
-| AVGO | 48.02 | $20,417.29 | 20.36% | +$138 (+0.7%) |
-| ASML | 13.28 | $19,939.92 | 19.88% | +$893 (+4.7%) |
-| AMD | 45.24 | $19,188.23 | 19.13% | −$1,854 (−8.8%) |
-| **Total equity** | | **$100,297.96** | 100% | |
+| AVGO | 48.02 | $20,177.67 | 20.05% | −$102 (−0.5%) |
+| AMD | 47.07 | $20,163.31 | 20.04% | −$1,657 (−7.6%) |
+| NVDA | 89.10 | $20,128.18 | 20.00% | +$100 (+0.5%) |
+| GOOG | 50.11 | $20,112.75 | 19.99% | +$905 (+4.7%) |
+| ASML | 13.28 | $19,827.99 | 19.70% | +$781 (+4.1%) |
+| **Total equity** | | **$100,635.98** | 100% | |
 
-Last successful rebalance: **2026-05-11** (AMZN → AMD swap, completed). Last cron firing: Fri 2026-05-15 21:00 local — preflight blocked on `data_freshness 37h > 36h` (no orders submitted, no halt written). **Operational note for non-US timezones:** 21:00 local fires ≈ 09:00 ET = before US market open if your host is in UTC+5 or further east. yfinance's latest daily bar at that moment is still yesterday's close ≈ 37h old, just over the 36h preflight threshold. Two fixes: bump `--stale-after-hours 50` in the cron line, or move the schedule to a time after US close in your local TZ (16:00 ET = 04:00 the next morning in UTC+8). Filed as the next operational tweak.
+Last successful rebalance: **2026-05-18** — caught up via manual `launchctl kickstart` of the new `com.alphasmart.rebalance` LaunchAgent. Completed the universe-v2 target by selling QQQ and buying NVDA (4 orders, all filled at market open). Scheduler migrated from cron → launchd the same day (lessons.md #51) after three observed silent-failures on cron over a week. The `--stale-after-hours 50` flag now absorbs the HK-21:00 = ET-09:00 pre-market timing gap.
 
 ---
 
@@ -90,37 +90,78 @@ python -m src.execution.runner_main rebalance --mode shadow --kind manual --verb
 # 6. Inspect the latest log line — drift_pct on each symbol must be < 1%
 tail -1 reports/paper_trade/$(date -u +%Y%m%d)/equity_xsec_momentum_B.jsonl | python -m json.tool
 
-# 7. Install cron (US Eastern equity close = 16:00 ET ≈ 21:00 UTC during DST)
-crontab -e
+# 7. Schedule via launchd (macOS — canonical) OR cron (Linux — fallback)
+# See "Scheduling" section below.
 ```
 
-Add these two lines to crontab (paths assume clone at `$HOME/alphasmart` — adjust if different):
+### Scheduling
+
+**macOS: launchd (recommended).** Plists live at `~/Library/LaunchAgents/`. After clone, copy or recreate the two LaunchAgents using the templates committed under `alphasmart/scripts/launchd/`:
+
+```bash
+# 1. Edit the plists to point at YOUR clone path (defaults are /Users/joepong/...)
+cp alphasmart/scripts/launchd/com.alphasmart.rebalance.plist  ~/Library/LaunchAgents/
+cp alphasmart/scripts/launchd/com.alphasmart.healthcheck.plist ~/Library/LaunchAgents/
+#    (edit both files — search/replace /Users/joepong/alphasmart with $HOME/alphasmart)
+
+# 2. Load both (UID is your numeric user id from `id -u`)
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.alphasmart.rebalance.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.alphasmart.healthcheck.plist
+
+# 3. Verify both are loaded (status `-` = waiting for scheduled time; PID appears during runs)
+launchctl list | grep alphasmart
+#   -    0    com.alphasmart.rebalance
+#   -    0    com.alphasmart.healthcheck
+
+# 4. (optional) Manually fire each to validate end-to-end before the first scheduled run
+launchctl kickstart -k gui/$(id -u)/com.alphasmart.healthcheck    # writes /tmp/alphasmart_health.json
+launchctl kickstart -k gui/$(id -u)/com.alphasmart.rebalance      # writes logs/launchd_rebalance.log
+
+# 5. Tail the logs
+tail -f alphasmart/logs/launchd_rebalance.log
+tail -f alphasmart/logs/launchd_healthcheck.log
+tail -f alphasmart/logs/health-alerts.log          # populated only on failed health-checks
+```
+
+**Schedules** (defined in the plist `StartCalendarInterval` arrays):
+- `com.alphasmart.rebalance` → weekdays 21:00 local, runs `runner_main rebalance --mode paper --fetch-before-rebalance --stale-after-hours 50`
+- `com.alphasmart.healthcheck` → weekdays 09:00 AND 22:00 local, runs `scripts/healthcheck_wrapper.sh` (which calls `runner_main health-check --check-broker` and fires a macOS notification on nonzero exit)
+
+**Why launchd over cron on macOS:** macOS `cron` is a legacy compat shim and goes silent after sleep/wake events without picking up its crontab on respawn (lessons.md #51). launchd survives sleep/wake, integrates with the unified log, and runs catch-up jobs if the Mac was off at the scheduled time (configurable via `StartCalendarIntervalRunAtLoadIfMissed`). To uninstall the LaunchAgents:
+
+```bash
+launchctl bootout gui/$(id -u)/com.alphasmart.rebalance
+launchctl bootout gui/$(id -u)/com.alphasmart.healthcheck
+rm ~/Library/LaunchAgents/com.alphasmart.*.plist
+```
+
+**Linux fallback (cron):**
 
 ```cron
-# AlphaSMART paper-trade — equity rebalance, weekdays 17:00 local (after US close)
-0 17 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode paper --fetch-before-rebalance >> $HOME/alphasmart/alphasmart/logs/cron.log 2>&1
-
-# AlphaSMART smoke check — shadow rebalance every day 17:40, alerts if preflight or signal goes sideways
-40 17 * * * cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode shadow --kind smoke --stale-after-hours 240 >> $HOME/alphasmart/alphasmart/logs/cron_test.log 2>&1
-
-# AlphaSMART silent-halt alarm — twice-daily probe of halt file + state-file age + broker reachability.
-# Exit codes: 0 ok / 10 halt_active / 11 state_stale / 12 broker_unreachable / 13 state_missing.
-# Catches the lessons.md #42 silent-halt scenario (4 days of unnoticed cron failure).
-0 9,22 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main health-check --check-broker > /tmp/alphasmart_health.json 2>&1 || (cat /tmp/alphasmart_health.json >> $HOME/alphasmart/alphasmart/logs/health-alerts.log && osascript -e "display notification \"AlphaSMART health-check FAILED — see logs/health-alerts.log\" with title \"AlphaSMART\"")
+# Same schedule via cron — adjust paths to your clone.
+0 21 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode paper --fetch-before-rebalance --stale-after-hours 50 >> $HOME/alphasmart/alphasmart/logs/cron.log 2>&1
+0 9,22 * * 1-5 $HOME/alphasmart/alphasmart/scripts/healthcheck_wrapper.sh
 ```
-
-> ⚠️ `cron` does not expand `$HOME` on every system. If your `crontab -l` shows the literal `$HOME` instead of `/Users/you` or `/home/you`, replace `$HOME` with the absolute path before saving.
 
 > ✅ **Pre-market rebalance is safe** (closed by lessons #43 / A1 / A2, merged to main 2026-05-17). The reconciler credits pending SELLs as `pending_close` (mirror of the existing `pending_fill` branch), and full closes use the broker's exact qty + bypass the rebalance threshold so fractional residuals get cleaned up in one pass. Older clones pre-this-commit can still write a false-positive halt — pull main and re-run to remove the caveat.
 >
-> ✅ **Silent halts are alarmed** (A3, merged same commit). The `health-check` subcommand returns distinct exit codes per failure class — see the third cron line above. A failed health-check writes to `logs/health-alerts.log` and fires a macOS notification within 8h of the next expected rebalance.
+> ✅ **Silent halts are alarmed** (A3, merged same commit). The `health-check` subcommand returns distinct exit codes per failure class — wired via `scripts/healthcheck_wrapper.sh` (the launchd entrypoint) which writes to `logs/health-alerts.log` and fires a macOS notification on nonzero exit.
+>
+> ✅ **macOS scheduler is launchd, not cron** (since 2026-05-18). After three observed cron silent-failures over a week (daemon respawning post sleep/wake without re-reading the crontab), migrated to two LaunchAgents under `~/Library/LaunchAgents/`. launchd integrates with the unified log, survives sleep/wake, and runs catch-up jobs.
 
-**Verify cron fired:**
+**Verify the scheduled run fired:**
 
 ```bash
+# launchd (macOS): launchctl shows last exit + PID
+launchctl list | grep alphasmart
+tail -f ~/alphasmart/alphasmart/logs/launchd_rebalance.log
+tail -f ~/alphasmart/alphasmart/logs/launchd_healthcheck.log
+
+# cron (Linux): tail the cron log
 tail -f ~/alphasmart/alphasmart/logs/cron.log
-# After the next scheduled run you should see: "rebalance_id": "rb-...", "drift_pct" < 0.01
-python -m src.execution.runner_main status   # confirms last_updated_utc moved forward
+
+# Either way: confirm state advanced
+python -m src.execution.runner_main status   # last_updated_utc should be recent
 ```
 
 ### What transfers via git, what doesn't

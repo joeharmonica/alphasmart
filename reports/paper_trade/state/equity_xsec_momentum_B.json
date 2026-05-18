@@ -1,30 +1,30 @@
 {
-  "last_updated_utc": "2026-05-14T13:29:49.713878+00:00",
-  "git_sha": "433873c5f726",
+  "last_updated_utc": "2026-05-18T13:50:45.223564+00:00",
+  "git_sha": "e5a36062d538",
   "strategy": "equity_xsec_momentum_B",
-  "rebalance_id": "rb-20260514T132949Z-0d0493",
+  "rebalance_id": "rb-20260518T135045Z-064b70",
   "positions": {
     "AMD": {
-      "qty": 45.402547,
+      "qty": 47.081691,
       "weight": 0.2
     },
     "ASML": {
-      "qty": 13.38219,
+      "qty": 13.458966,
       "weight": 0.2
     },
     "GOOG": {
-      "qty": 53.028783,
+      "qty": 50.098013,
       "weight": 0.2
     },
     "AVGO": {
-      "qty": 48.541637,
+      "qty": 47.954701,
       "weight": 0.2
     },
     "NVDA": {
-      "qty": 92.189094,
+      "qty": 89.100203,
       "weight": 0.2
     }
   },
   "cash_weight": 0.0,
-  "portfolio_value": 101767.54
+  "portfolio_value": 100086.26
 }
