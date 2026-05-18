@@ -900,3 +900,63 @@ Kickstart of the healthcheck LaunchAgent correctly returned exit code 11 (`state
 **Adjacent follow-up issue (filed for A4):** the kickstart rebalance wrote a false-positive halt with `per_symbol_drift=0.0135>0.01; phantom_symbols=['QQQ']`. The phantom flag is the SAME class of bug A1 closed for the "not in target + pending SELL" case — but in the *drift* branch of the reconciler (symbols that are BOTH in `expected` and `broker_by_sym`), pending corrective orders are NOT credited before classification. So a freshly-submitted rebalance briefly shows drift > threshold for symbols with pending fills, even when the orders will resolve the drift in seconds. **A4 (filed):** extend the `_classify_match` pathway to credit pending qty before drift classification, mirroring the pending_fill / pending_close logic in the other two branches.
 
 **Rule:** **On macOS, never schedule production jobs with cron. Use launchd with versioned plists committed to the repo.** Cron will appear to work indefinitely, then silently stop after a system event you don't notice for days. If a project ships with cron documentation only, treat it as a Linux-first project — on macOS, add launchd as the canonical path and demote cron to "fallback for non-macOS hosts." A health-check / silent-halt alarm is mandatory regardless of scheduler choice (lessons #42), but launchd makes silent failures far less likely in the first place.
+
+---
+
+## 52. Two More False-Positive Halt Classes in the Reconciler (A4 pending-corrective, A5 threshold-misalignment) — Lesson #43 Was Necessary But Insufficient
+
+**Setup (2026-05-18, two separate kickstart incidents):** the production paper-trade runner triggered the reconciler immediately after order submission, expecting a clean no-halt result. Both kickstarts wrote false-positive halts via two distinct mechanisms — neither covered by the lesson #43 / A1 / A2 fixes.
+
+### A4 — drift branch doesn't credit pending corrective orders
+
+**First incident (21:50, after market open):** kickstart submitted 4 orders (QQQ→NVDA swap + AMD/GOOG adjustments), all accepted but not yet filled. Reconciler ran ~1s later, saw broker positions at old qty + AMD/GOOG drift > 1% (orders not yet reflected), classified as `drift` without crediting the pending corrective BUYs/SELLs. Halt fired:
+
+```
+per_symbol_drift=0.0135>0.01; cumulative_drift=0.0135>0.005; phantom_symbols=['QQQ']
+```
+
+The phantom QQQ would have been caught by A1 (pending SELL of full position size). The AMD/GOOG drift was a NEW class: pending corrective of partial size that would close the drift but not fully close the position.
+
+**Root cause:** the `_classify_match` pathway (the "both expected and broker_by_sym" branch in `reconcile()`) did not accept or use the pending_qty parameter. A1 fixed `pending_fill` (missing branch) and `pending_close` (phantom branch); the analogous logic for the drift branch was never added.
+
+**A4 fix:** extend `_classify_match` to accept `pending_qty: float = 0.0` and apply the same logic as A1 — if the original classification would be `drift` AND a pending corrective brings the post-fill drift back within `per_symbol_threshold`, downgrade to a new `pending_adjust` classification (parallel to `pending_fill` / `pending_close`). Caller passes `pending_qty=pending_by_sym.get(sym, 0.0)`. Log payload adds `pending_adjust_symbols` for observability.
+
+**Tests:** 5 new (`tests/test_reconciler.py`) — pending BUY adjust, pending SELL adjust, partial pending still drifts (defensive), no pending still drifts, sub-threshold drift not promoted to pending_adjust.
+
+### A5 — per-symbol drift threshold misaligned with runner's intentional-skip band
+
+**Second incident (22:09, after A4 was implemented but before A5):** kickstarted a second rebalance against a basket that already exactly matched target. Strategy runner computed 5 small symbol deltas (each $20-$300), all below the $501 rebalance_threshold, **all 5 skipped — zero orders submitted**. Reconciler then halted on ASML drift = 1.49%:
+
+```
+per_symbol_drift=0.0156>0.01; cumulative_drift=0.0156>0.005
+```
+
+A4 couldn't help — no pending orders existed to credit. The drift was real but **intentionally left by the strategy**, because the implied $-delta ($291) was below the runner's $501 no-trade band.
+
+**Root cause:** structural threshold mismatch:
+- `StrategyRunner.rebalance_threshold_pct = 0.005` ($-based: skip orders < 0.5% of portfolio_value)
+- `Reconciler.per_symbol_drift_halt_pct = 0.01` (%-based: halt on > 1% qty drift)
+
+For a top-K=5 equal-weight strategy (max symbol weight = 0.20), the maximum qty drift the runner intentionally leaves unaddressed is `rebalance_threshold_pct / max_target_weight = 0.005 / 0.20 = 2.5%`. The reconciler's 1% threshold was triggering on drifts well within that intentional band.
+
+**A5 fix:** bump `DEFAULT_PER_SYMBOL_DRIFT_HALT_PCT` from 0.01 → 0.03 with a docstring explaining the derivation: `3% ≥ 2.5% (max strategy-skip drift) + 0.5pp safety margin`. Strategies with different `(top_k, rebalance_threshold_pct)` parameters must pass `per_symbol_drift_halt_pct` explicitly to override.
+
+**Tests:** 2 new — default 3% tolerates 1.5% drift (the exact 22:09 scenario), explicit `per_symbol_drift_halt_pct=0.01` still halts (operator override still works).
+
+### Live verification after both fixes
+
+Kickstarted the rebalance a third time (22:11). Result: `pre_flight_ok=true, orders_submitted=0, reconciliation_should_halt=false, max_drift_pct=0.0, halt_reason=null`. Both LaunchAgents exit 0. Clean no-op as designed.
+
+### Architectural reflection
+
+Lessons #43 (A1) and #52 (A4 + A5) collectively reveal that **the reconciler's "halt on any unexpected condition" stance was over-conservative without enough visibility into in-flight orders and the strategy's own no-trade band.** The repaired reconciler now:
+1. Credits pending BUYs against missing-expected (A1: `pending_fill`)
+2. Credits pending SELLs against phantom-broker (A1: `pending_close`)
+3. Credits pending corrective orders against drift-broker (A4: `pending_adjust`)
+4. Tolerates drift up to the strategy's intentional-skip band (A5: 3% default)
+
+Net effect: false-positive halts are eliminated for the production strategy as long as the strategy operates within its declared parameters. **Real failures (broker corrupting positions, corporate actions, unauthorized trades) still halt correctly** because they exceed the wider threshold by definition.
+
+### Rule
+
+**The reconciler's drift threshold must be a function of the runner's no-trade band, not an independent constant.** Concretely: `per_symbol_drift_halt_pct >= rebalance_threshold_pct / max_target_weight + safety_margin`. If a strategy changes its `(top_k, rebalance_threshold_pct)` parameters, the reconciler threshold must be re-derived and passed explicitly. Future architectural improvement (filed as next-tier): make `Reconciler.__init__` accept the strategy spec and derive the threshold automatically, eliminating the manual coupling. **Adjacent rule:** every false-positive halt class found in production should be encoded as a regression test and a new classification name (e.g. `pending_adjust` over reusing `pending_fill`) so the audit log self-documents *why* the halt was suppressed.

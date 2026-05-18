@@ -377,6 +377,169 @@ def test_reconciler_phantom_with_no_pending_still_halts(reconciler, broker, stat
     assert result.should_halt is True
 
 
+def test_reconciler_pending_buy_credited_as_pending_adjust_when_broker_short(reconciler, broker, state):
+    """
+    A4 (lessons #52): symbol is in BOTH expected and broker; broker qty is
+    below expected by > threshold (e.g. the rebalance just submitted a BUY
+    that hasn't filled yet). A pending BUY of the right size should make
+    the post-fill drift <= threshold → classify as `pending_adjust`, no halt.
+
+    This is the scenario the 2026-05-18 21:50 kickstart hit: target had
+    NVDA at 20%, AMD/GOOG had small adjustments queued, reconciler ran in
+    the ~1s pre-fill window and saw drift > threshold without crediting
+    the pending correctives.
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+
+    state.write("s", "rb",
+                target_weights={"AMD": 1.0},
+                portfolio_value=1000.0, latest_prices={"AMD": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="AMD", qty=8.5, side="buy"))
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-amd-adjust", client_order_id="cid", symbol="AMD",
+        qty=1.5, side="buy", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    result = reconciler.reconcile()
+    assert result.should_halt is False, f"unexpected halt: {result.halt_reason}"
+    adj = [s for s in result.symbols if s.classification == "pending_adjust"]
+    assert len(adj) == 1 and adj[0].symbol == "AMD"
+    assert "AMD" not in {s.symbol for s in result.symbols if s.classification == "drift"}
+
+
+def test_reconciler_pending_sell_credited_as_pending_adjust_when_broker_long(reconciler, broker, state):
+    """
+    Symmetric case: broker over-holds by > threshold; a pending SELL of the
+    right size brings the post-fill qty back to target → pending_adjust.
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+
+    state.write("s", "rb",
+                target_weights={"GOOG": 1.0},
+                portfolio_value=1000.0, latest_prices={"GOOG": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="GOOG", qty=12.0, side="buy"))
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-goog-adjust", client_order_id="cid", symbol="GOOG",
+        qty=2.0, side="sell", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    result = reconciler.reconcile()
+    assert result.should_halt is False
+    adj = [s for s in result.symbols if s.classification == "pending_adjust"]
+    assert len(adj) == 1 and adj[0].symbol == "GOOG"
+
+
+def test_reconciler_pending_adjust_too_small_still_drift(reconciler, broker, state):
+    """
+    Pending corrective only partially closes the drift — post-fill would
+    still exceed threshold → classified drift, halt fires. Defends against
+    a manual partial order being mistaken for sufficient correction.
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+
+    state.write("s", "rb",
+                target_weights={"AMD": 1.0},
+                portfolio_value=1000.0, latest_prices={"AMD": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="AMD", qty=8.0, side="buy"))
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-amd-tiny", client_order_id="cid", symbol="AMD",
+        qty=0.5, side="buy", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    result = reconciler.reconcile()
+    assert result.should_halt is True
+    drifted = [s for s in result.symbols if s.classification == "drift"]
+    assert len(drifted) == 1 and drifted[0].symbol == "AMD"
+
+
+def test_reconciler_drift_with_no_pending_still_halts(reconciler, broker, state):
+    """
+    Drift > threshold AND no pending corrective → still classified drift,
+    still halts. Confirms the new pending_adjust branch doesn't accidentally
+    rescue genuine drift.
+    """
+    state.write("s", "rb",
+                target_weights={"AMD": 1.0},
+                portfolio_value=1000.0, latest_prices={"AMD": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="AMD", qty=8.5, side="buy"))
+    result = reconciler.reconcile()
+    assert result.should_halt is True
+    drifted = [s for s in result.symbols if s.classification == "drift"]
+    assert len(drifted) == 1 and drifted[0].symbol == "AMD"
+
+
+def test_reconciler_default_threshold_tolerates_runner_skip_band(broker, state, tmp_root):
+    """
+    A5 (lessons #52): default per_symbol_drift_halt_pct (3%) must be wider
+    than the maximum qty drift the StrategyRunner intentionally leaves
+    unaddressed. For top_k=5 (max weight=20%) and rebalance_threshold_pct=0.005,
+    that's 0.005/0.20 = 2.5% qty drift. The default 3% covers that case.
+
+    Scenario from the 2026-05-18 22:09 kickstart: basket at target within
+    $300 per symbol, no orders submitted, but ASML qty drift was 1.49% — old
+    1% reconciler threshold halted, new 3% tolerates it correctly.
+    """
+    # 1.5% drift on ASML — would halt at the old 1% default, tolerated at 3%.
+    state.write("s", "rb",
+                target_weights={"ASML": 1.0},
+                portfolio_value=1000.0, latest_prices={"ASML": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="ASML", qty=9.85, side="buy"))
+    log = ShadowLog(channel="recon_a5", root=tmp_root / "logs")
+    reconciler_default = Reconciler(broker=broker, state=state, log=log)
+    result = reconciler_default.reconcile()
+    assert result.should_halt is False, (
+        f"3% default should tolerate 1.5% drift (runner's intentional skip band); "
+        f"got halt: {result.halt_reason}"
+    )
+    asml = [s for s in result.symbols if s.symbol == "ASML"][0]
+    assert asml.classification == "ok"
+
+
+def test_reconciler_explicit_tight_threshold_still_halts(broker, state, tmp_root):
+    """
+    A5: operators with stricter drift tolerance can still pass per_symbol_drift_halt_pct=0.01
+    explicitly to get the old behaviour. Confirms the threshold is genuinely
+    a kwarg and not hardcoded anywhere downstream.
+    """
+    state.write("s", "rb",
+                target_weights={"ASML": 1.0},
+                portfolio_value=1000.0, latest_prices={"ASML": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="ASML", qty=9.85, side="buy"))
+    log = ShadowLog(channel="recon_a5_tight", root=tmp_root / "logs")
+    reconciler_tight = Reconciler(broker=broker, state=state, log=log,
+                                   per_symbol_drift_halt_pct=0.01)
+    result = reconciler_tight.reconcile()
+    assert result.should_halt is True
+    assert any(s.classification == "drift" for s in result.symbols if s.symbol == "ASML")
+
+
+def test_reconciler_subthreshold_already_ok_not_promoted(reconciler, broker, state):
+    """
+    Drift is sub-threshold (already classified "ok"). Even with a pending
+    order present, classification stays "ok" — pending_adjust only fires
+    when the original classification would have been "drift".
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+
+    state.write("s", "rb",
+                target_weights={"AMD": 1.0},
+                portfolio_value=1000.0, latest_prices={"AMD": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="AMD", qty=9.95, side="buy"))
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-amd-extra", client_order_id="cid", symbol="AMD",
+        qty=0.05, side="buy", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    result = reconciler.reconcile()
+    assert result.should_halt is False
+    amd = [s for s in result.symbols if s.symbol == "AMD"][0]
+    assert amd.classification == "ok"
+
+
 def test_reconciler_logs_full_per_symbol_breakdown(reconciler, broker, state, tmp_root):
     state.write("s", "rb",
                 target_weights={"AAPL": 1.0},

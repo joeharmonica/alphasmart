@@ -21,6 +21,13 @@ In-flight order classifications (do not halt):
     SELL of matching size is queued (cross-asset close mid-flight). Mirror
     of `pending_fill`; without it, every cross-asset swap submitted while
     the market is closed wrote a false-positive halt (lessons.md #43).
+  - `pending_adjust` — both expected and broker hold the symbol but the
+    drift is > per_symbol_threshold AND a pending corrective order (BUY
+    or SELL) of the right size would close the drift within threshold.
+    Without this, any rebalance that submits multiple small adjustments
+    during market hours (orders queued for milliseconds before fill)
+    wrote a false-positive halt for any symbol whose corrective order
+    hadn't filled yet by the time the reconciler ran (lessons.md #52).
 
 Failure escalation per design:
   drift > 1% per-symbol → halt new orders, leave existing positions alone,
@@ -39,8 +46,24 @@ from src.execution.shadow_log import ShadowLog
 from src.execution.state_store import StateStore, StateRecord
 
 
-# Defaults from paper_trade_design.md §2 / §6
-DEFAULT_PER_SYMBOL_DRIFT_HALT_PCT = 0.01     # 1% qty drift on any one symbol
+# Defaults from paper_trade_design.md §2 / §6.
+#
+# IMPORTANT THRESHOLD ALIGNMENT (lessons.md #52, A5 fix):
+#   The reconciler's per-symbol qty-drift threshold must be WIDER than the
+#   maximum qty drift the StrategyRunner intentionally leaves unaddressed
+#   via its $-based rebalance_threshold_pct. Otherwise the reconciler halts
+#   on drifts the strategy correctly decided not to fix.
+#
+#   Derivation for the current production strategy:
+#     - StrategyRunner uses rebalance_threshold_pct = 0.005 ($-based)
+#     - Top-K=5 equal-weight → max symbol weight = 0.20
+#     - Max qty drift left unaddressed = 0.005 / 0.20 = 0.025 = 2.5%
+#     - Add 0.5pp safety margin → 0.03 = 3%
+#
+#   For strategies with different (top_k, rebalance_threshold) the operator
+#   should pass per_symbol_drift_halt_pct explicitly. The 0.03 default is
+#   correct for top_k=5, rebalance_threshold_pct≤0.005.
+DEFAULT_PER_SYMBOL_DRIFT_HALT_PCT = 0.03     # 3% qty drift on any one symbol
 DEFAULT_CUMULATIVE_30D_HALT_PCT = 0.005      # 0.5% across all symbols, 30 days
 PHANTOM_POSITION_HALT = True                  # broker has a symbol we didn't expect
 
@@ -52,7 +75,7 @@ class SymbolDrift:
     broker_qty: float
     drift_qty: float
     drift_pct: float                 # broker_qty - expected_qty / expected_qty (when expected > 0)
-    classification: str              # "ok" | "drift" | "missing" | "phantom" | "pending_fill" | "pending_close"
+    classification: str              # "ok" | "drift" | "missing" | "phantom" | "pending_fill" | "pending_close" | "pending_adjust"
     pending_open_qty: float = 0.0    # signed qty currently in unfilled broker orders (BUYs +, SELLs -)
 
 
@@ -121,8 +144,10 @@ class Reconciler:
         for sym in sorted(all_syms):
             pending_qty = pending_by_sym.get(sym, 0.0)
             if sym in expected and sym in broker_by_sym:
-                drift = self._classify_match(sym, expected[sym].qty, broker_by_sym[sym])
-                drift.pending_open_qty = pending_qty
+                drift = self._classify_match(
+                    sym, expected[sym].qty, broker_by_sym[sym],
+                    pending_qty=pending_qty,
+                )
                 symbols.append(drift)
             elif sym in expected:
                 # Expected but not yet at broker. If a pending buy exists
@@ -180,6 +205,7 @@ class Reconciler:
         missing_syms = [s.symbol for s in symbols if s.classification == "missing"]
         pending_syms = [s.symbol for s in symbols if s.classification == "pending_fill"]
         pending_close_syms = [s.symbol for s in symbols if s.classification == "pending_close"]
+        pending_adjust_syms = [s.symbol for s in symbols if s.classification == "pending_adjust"]
 
         # Halt logic (escalation matches design §6 default 4)
         halt_reasons = []
@@ -224,6 +250,7 @@ class Reconciler:
                 "missing_symbols": missing_syms,
                 "pending_fill_symbols": pending_syms,
                 "pending_close_symbols": pending_close_syms,
+                "pending_adjust_symbols": pending_adjust_syms,
                 "should_halt": should_halt,
                 "halt_reason": halt_reason,
                 "state_age_seconds": state_age,
@@ -238,7 +265,13 @@ class Reconciler:
 
     # -----------------------------------------------------------------
 
-    def _classify_match(self, sym: str, expected_qty: float, broker_pos: AlpacaPosition) -> SymbolDrift:
+    def _classify_match(
+        self,
+        sym: str,
+        expected_qty: float,
+        broker_pos: AlpacaPosition,
+        pending_qty: float = 0.0,
+    ) -> SymbolDrift:
         broker_qty = broker_pos.qty
         drift_qty = broker_qty - expected_qty
         if expected_qty != 0:
@@ -247,7 +280,20 @@ class Reconciler:
             drift_pct = 0.0 if broker_qty == 0 else float("inf")
 
         # Treat drift below the per-symbol threshold as "ok" (sub-threshold rounding)
-        classification = "ok" if abs(drift_pct) <= self.per_symbol_threshold else "drift"
+        if abs(drift_pct) <= self.per_symbol_threshold:
+            classification = "ok"
+        else:
+            # If a pending corrective order would close the drift within
+            # threshold, downgrade to `pending_adjust` rather than `drift`
+            # (lessons.md #52 — A4 fix, mirrors A1's pending_fill /
+            # pending_close logic in the other two branches).
+            classification = "drift"
+            if pending_qty != 0.0 and expected_qty != 0:
+                effective_qty = broker_qty + pending_qty
+                effective_drift_pct = (effective_qty - expected_qty) / expected_qty
+                if abs(effective_drift_pct) <= self.per_symbol_threshold:
+                    classification = "pending_adjust"
+
         return SymbolDrift(
             symbol=sym,
             expected_qty=expected_qty,
@@ -255,6 +301,7 @@ class Reconciler:
             drift_qty=drift_qty,
             drift_pct=drift_pct,
             classification=classification,
+            pending_open_qty=pending_qty,
         )
 
     def _handle_no_state(self, ts: datetime, broker_by_sym: dict[str, AlpacaPosition]) -> ReconciliationResult:
