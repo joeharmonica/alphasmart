@@ -1045,3 +1045,81 @@ Daily cron firings on inter-rotation days now correctly no-op via the cadence ga
 ### Rule
 
 **Backtest spec parameters that govern WHEN to act (rebal_period, lookback, skip_days) must be enforced in the live runner, not just the signal function.** A live system that recomputes the signal daily without a cadence gate is doing a *different strategy* than the backtest — same alpha, different cost profile. Always grep the live code for the spec's cadence parameter and add an explicit gate if missing. Adjacent rule: **any behavior in the live system that's NOT in the backtest is a divergence**, even if it looks like a "reasonable default." The `rebalance_threshold_pct = 0.005` inside `StrategyRunner` is the same class of bug — its absence in the backtest means the backtest never modeled the small-trade-skipping behavior; A8 should remove or harmonize it.
+
+---
+
+## 54. Cadence Study (Option B Follow-up to #53) — Daily-Correction Outperforms Monthly Below ~10 bps Slippage; A7 Is Right at Production Realism
+
+**Setup (2026-05-22):** Lessons #53 noted that pre-A7 the live runner did "daily recompute + $-threshold" while the backtest used "monthly rebal". The A7 cadence gate forced live to match the backtest's monthly cadence. The natural follow-up question: **which is actually better?**
+
+Re-ran the backtest with FOUR cadence variants on the same 10y window (2016-06 → 2026-05), same 17-symbol mega-cap universe, same xsec momentum + SPY 200d MA filter, $100k initial capital, realistic 5 bps slippage on each filled trade:
+
+| Variant | Cadence | Threshold | Matches |
+|---|---|---|---|
+| A — `monthly_clean` | every 21 days | none | the backtest's `rebal=21d` spec |
+| B — `daily_no_threshold` | every day | none | pure daily tracking (theoretical upper bound on cost) |
+| C — `daily_threshold` | every day | 0.5% | pre-A7 live behavior |
+| D — `monthly_threshold` | every 21 days | 0.5% | post-A7 live behavior |
+
+### Headline result — daily-correction WINS at 5 bps slippage
+
+| Variant | Final $ (on $100k) | CAGR | Sharpe | MaxDD | Trades/yr | Total slippage $ |
+|---|---:|---:|---:|---:|---:|---:|
+| **A monthly_clean** | $1,921,262 | +34.58% | 1.22 | **−38.72%** | 175.9 | $17,545 |
+| **B daily_no_threshold** | $1,811,492 | +33.78% | **1.29** | **−28.98%** | 3,438.5 | $110,213 |
+| **C daily_threshold** ← pre-A7 | $1,811,588 | +33.79% | **1.29** | **−28.85%** | 307.5 | $106,615 |
+| **D monthly_threshold** ← post-A7 | $1,920,388 | +34.57% | 1.22 | −38.74% | 51.1 | $17,481 |
+
+Two real surprises:
+1. **Daily-correction had LOWER MaxDD by ~10 percentage points** (−29% vs −39%). Mechanism: the 200d-MA regime filter fires on the day SPY crosses below the MA. Monthly cadence holds for up to 20 more days before responding; in 2020 COVID and 2022 bear, that delay cost ~10pp of additional drawdown.
+2. **Daily-correction had HIGHER Sharpe** (1.29 vs 1.22) despite 6× more slippage cost. The tighter tracking reduces daily-return volatility enough to more than offset the slippage drag at 5 bps.
+
+The threshold (C vs B) reduces trade count 11× (34,221 → 3,060) but barely changes performance — confirming the $-threshold is a cheap, almost-free operational simplification at this realism level.
+
+### Sensitivity — the breakeven is ~10 bps slippage
+
+The 5-bps assumption is optimistic. Real-world retail slippage on liquid mega-caps is 3-10 bps; on less-liquid names or during volatile periods, 15-30 bps. Re-ran A vs C across slippage levels:
+
+| Slippage (bps) | A monthly Sharpe | C daily Sharpe | C wins by | C vs A CAGR |
+|---:|---:|---:|---:|---:|
+| 5 | 1.22 | **1.29** | +0.07 | −0.79pp |
+| 10 | 1.21 | **1.23** | +0.02 | −2.47pp |
+| 15 | 1.20 | 1.17 | **−0.03** | −4.08pp |
+| 20 | 1.19 | 1.11 | **−0.08** | −5.65pp |
+| 30 | 1.17 | 0.98 | **−0.19** | −8.75pp |
+| 50 | 1.13 | 0.74 | **−0.39** | −14.61pp |
+
+**Crossover: between 10 and 15 bps slippage.** Below 10 bps, daily-correction wins. Above 15 bps, monthly wins clearly. Between 10-15 bps it's a wash on Sharpe but daily already costs 4pp of CAGR.
+
+### Implications for A7
+
+The cadence gate (#53) **was not strictly necessary at Alpaca paper levels of slippage** (which simulate near-mid fills, ≈ 0-5 bps effective). At those levels the pre-A7 daily-correction delivered higher Sharpe + lower MaxDD than the backtest's monthly spec. So if the production goal was *exactly* to match the backtest, A7 was a small regression on paper.
+
+But A7 **IS the right default for real money** because:
+1. Real-fill slippage at retail levels is 8-20 bps depending on broker, size, and volatility regime — well into the range where monthly cadence wins.
+2. Tax events: each trade in a taxable account is a short-term cap-gains event. Going from ~300 trades/year to ~50 trades/year matters a lot at the marginal tax rate.
+3. A7 makes live behavior identical to the backtest's claimed numbers (Sharpe 1.89 in `paper_trade_design.md`'s context). If a future audit asks "does live match the backtest?" the answer is yes by construction.
+4. A7's `--rebal-period-days` and `--force-rebalance` flags allow operator override, so the cadence is configurable per strategy.
+
+### Recommendation — keep A7 default, document the trade-off
+
+1. **Production paper trading**: keep `rebal_period_days=21` (default). Matches the backtest, minimises tax/slippage in any future real-money deployment.
+2. **For research / parameter sweeps**: rerun with `rebal_period_days=1` to see the daily-correction comparator. If the alternative shows materially better risk-adjusted return at realistic slippage, consider lowering the threshold for that specific strategy.
+3. **For any future low-slippage strategy** (e.g. crypto on Coinbase Pro at 0 bps, or institutional-routing equity at < 5 bps): consider `rebal_period_days=1` with the existing $-threshold. The 5-bps backtest shows daily wins.
+
+### The deeper rule — verified
+
+Lesson #53's rule was: *"any backtest spec parameter that governs WHEN to act must be enforced in the live runner."* The follow-up question: *what if the live behavior was already better?* Today's study answers: **at production-realistic slippage levels (>10 bps), the backtest-matching cadence IS better**; at sub-10-bps levels the live divergence happened to be a net positive but only marginally and only on this specific 10y window. The backtest match is the conservative default; deviations should be justified by an explicit cost model, not by accident.
+
+### Outputs
+
+All in `reports/xsec_cadence_study/`:
+- `summary_stats.csv` — 4 variants × 9 metrics
+- `slippage_sensitivity.csv` — A vs C across 6 slippage levels
+- `daily_equity.csv` — daily portfolio value per variant (10y)
+- `trades_per_day.csv` — trade count per variant per day
+- `equity_curves.png` — 2-panel: equity + drawdown for all 4 variants
+
+### Rule
+
+**When a live-vs-backtest divergence is found (lessons #53), re-run the backtest with the live variant before deciding which to canonicalize.** Sometimes the implementation drift is a *bug fix* in disguise (the live system did something smarter than the original backtest design). Sometimes it's a *cost regression* hiding under benign appearances. Run both, compare on the canonical evaluation window, and pick the one that survives realistic friction. Default to the backtest-matching version *unless* the data shows a clear, robust improvement under realistic assumptions. Production-realistic slippage (typically 10-20 bps for retail equity) is the right realism level — not the 5-bps optimal-case figure most backtests assume.

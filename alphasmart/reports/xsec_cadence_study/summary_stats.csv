@@ -1,0 +1,5 @@
+name,final_value,cagr_pct,sharpe,maxdd_pct,n_trades,n_recomputes,total_slippage_$,slip_pct_of_initial,trades_per_year
+A_monthly_clean,1921261.531,34.578,1.218,-38.719,1751,120,17544.623,17.545,175.938
+B_daily_no_threshold,1811491.931,33.784,1.291,-28.975,34221,2508,110213.034,110.213,3438.474
+C_daily_threshold,1811588.164,33.785,1.291,-28.852,3060,2508,106615.300,106.615,307.464
+D_monthly_threshold,1920387.895,34.571,1.218,-38.736,509,120,17481.193,17.481,51.144
