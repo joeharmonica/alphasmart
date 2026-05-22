@@ -960,3 +960,88 @@ Net effect: false-positive halts are eliminated for the production strategy as l
 ### Rule
 
 **The reconciler's drift threshold must be a function of the runner's no-trade band, not an independent constant.** Concretely: `per_symbol_drift_halt_pct >= rebalance_threshold_pct / max_target_weight + safety_margin`. If a strategy changes its `(top_k, rebalance_threshold_pct)` parameters, the reconciler threshold must be re-derived and passed explicitly. Future architectural improvement (filed as next-tier): make `Reconciler.__init__` accept the strategy spec and derive the threshold automatically, eliminating the manual coupling. **Adjacent rule:** every false-positive halt class found in production should be encoded as a regression test and a new classification name (e.g. `pending_adjust` over reusing `pending_fill`) so the audit log self-documents *why* the halt was suppressed.
+
+---
+
+## 53. Backtest-Live Cadence Mismatch — Daily Recompute vs `rebal=21d` Required a Production-Side Cadence Gate (A7)
+
+**Discovery (2026-05-22):** during a routine "what's the strategy doing today" review, noticed that the strategy spec in `paper_trade_design.md` calls for `rebal=21d` (monthly cadence) — but `strategy_runner.py` has NO rebalance-period gate. Grep confirms: 0 mentions of `rebal_period`, `21d`, or any cadence check in the live code. Every cron firing computed the target weights from scratch and submitted any orders > `rebalance_threshold_pct × portfolio_value` (default $501). Direct evidence in the production logs: Wed 2026-05-20's scheduled run submitted **1 GOOG order** for a small intra-month weight drift — exactly the kind of trade the monthly-cadence backtest would have *not* made.
+
+**Impact analysis:**
+
+| Aspect | Backtest assumed (rebal=21d) | Live actual (daily recompute + $-threshold) |
+|---|---|---|
+| Trade count per year | ~25-50 (membership rotations + monthly weight rebal) | ~80-150 (rotations + daily drift corrections > $501) |
+| Slippage cost (0.05% per trade) | ~1.5%/yr | ~5%/yr |
+| Reported Sharpe (backtest = 1.89) | computed at monthly cadence | could realize ~0.3 lower on slippage drag |
+| Intra-month weight tracking | drifts 5-10% before correction | corrected daily once delta > 0.5pp |
+
+Both implementations are valid "cross-sectional momentum, top-K equal-weight" — but they have materially different cost profiles, and the backtest's claimed performance was the monthly version.
+
+### Design — A7 cadence gate in `orchestrate_rebalance`
+
+State schema extension: added `last_rebalance_utc: Optional[str]` to `StateRecord`. Updated only on paper-mode runs that pass the cadence gate. Daily firings that hit the gate return early *without* writing state, so the anchor reliably tracks the time-since-last-actual-rebalance (matching the backtest's clock).
+
+Gate logic (in `orchestrate_rebalance`, after preflight, before `runner.rebalance()`):
+
+```
+1. Compute target_weights (call runner._compute_target_weights)
+2. Read prev_state; extract last_rebalance_utc + position set
+3. is_rotation = (prev_held_set != target_set)  [empty prev → False]
+4. days_since_last = (now - last_rebalance_utc) in days  [None if no anchor]
+5. cadence_reached = days_since_last >= rebal_period_days (default 21)
+6. If mode == paper AND not force_rebalance AND prev_state exists:
+     if NOT (is_rotation OR cadence_reached OR first_run):
+       → set cadence_blocked=True, log event, return early
+7. Else proceed to runner.rebalance(), submit, reconcile, write state
+   (state.write sets last_rebalance_utc = now → anchor advances)
+```
+
+**Three escape hatches** (always allow the run):
+- `is_rotation` — top-K membership changed → fire immediately (this IS the strategy's core signal)
+- `days_since_last >= rebal_period_days` — monthly mark reached
+- `force_rebalance=True` — operator CLI override (`--force-rebalance`) for catch-up / manual interventions
+
+**Shadow mode bypasses the gate** — shadow runs are diagnostic; they should always recompute and log even on inter-cadence days.
+
+### Why the gate logic is correct
+
+The gate's three escape hatches correspond directly to the three conditions under which the backtest's `rebal=21d` would have fired:
+1. **First run** (no anchor) — backtest's day 0
+2. **Rotation** (top-K changed) — happens between rebalance dates if the universe shuffled enough that today's recompute returns different membership. The backtest would have caught this on the next 21d mark and acted on the same intent; firing immediately is *more responsive*, not less.
+3. **21 days elapsed** — the explicit monthly cadence
+
+The only behavior the gate *removes* from the live system is "fire on small price-drift adjustments between rotations" — which is exactly the behavior the backtest didn't model.
+
+### Tests (7 new, all passing; full suite 307 green, no regressions)
+
+- `test_cadence_gate_blocks_recent_no_rotation_paper_run` — 5-day-old anchor + same basket → blocked
+- `test_cadence_gate_allows_when_rotation` — top-K membership changed → bypass
+- `test_cadence_gate_allows_when_period_elapsed` — 25 days elapsed → bypass
+- `test_cadence_gate_allows_when_force_rebalance` — `--force-rebalance` → bypass
+- `test_cadence_gate_allows_first_run_no_prior_state` — no state → first-run path, sets anchor
+- `test_cadence_gate_advances_anchor_only_on_pass` — blocked runs preserve the anchor
+- `test_cadence_gate_bypassed_in_shadow_mode` — shadow always runs (diagnostic)
+
+### Live verification (2026-05-22 23:28 HK)
+
+**First kickstart** (state file had `last_rebalance_utc=None` from pre-A7 era): fell into the first-run branch, ran a full rebalance (5 orders to clean up the drift accumulated since the last scheduled run on Wed). State file now has `last_rebalance_utc=2026-05-22T15:28:07Z`.
+
+**Second kickstart** (immediately after, anchor set to seconds ago):
+- `cadence_blocked: True`
+- `cadence_reason: cadence_gate: no_rotation AND 0.0d < 21d since last rebalance`
+- `orders_submitted: 0`, `new_halt_written: False`
+- Exit code **0** (success — gate correctly decided not to act)
+
+### Operational change
+
+Daily cron firings on inter-rotation days now correctly no-op via the cadence gate rather than churning small adjustments. The strategy's realized trade count should drop from ~100/year to ~30/year (≈12 monthly events + ~18 rotation events), bringing slippage costs in line with the backtest assumption. **The 30-day paper-trade rubric (`paper_trade_design.md` §5) is the right place to validate this empirically** — re-evaluate live Sharpe vs backtest expectation in a few weeks.
+
+### Open follow-ups
+
+1. **Re-baseline the backtest's `rebalance_threshold_pct`** semantics: the live runner uses $-threshold inside the gate's "allowed" days, which the backtest doesn't model. Either teach the backtest about the threshold, or drop the threshold in the live runner (so the gate is the ONLY no-op mechanism). Filing as A8.
+2. **Document the cadence design** in `paper_trade_design.md` §3 — currently only mentioned in passing. Will land in the next docs sweep.
+
+### Rule
+
+**Backtest spec parameters that govern WHEN to act (rebal_period, lookback, skip_days) must be enforced in the live runner, not just the signal function.** A live system that recomputes the signal daily without a cadence gate is doing a *different strategy* than the backtest — same alpha, different cost profile. Always grep the live code for the spec's cadence parameter and add an explicit gate if missing. Adjacent rule: **any behavior in the live system that's NOT in the backtest is a divergence**, even if it looks like a "reasonable default." The `rebalance_threshold_pct = 0.005` inside `StrategyRunner` is the same class of bug — its absence in the backtest means the backtest never modeled the small-trade-skipping behavior; A8 should remove or harmonize it.

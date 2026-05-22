@@ -140,6 +140,10 @@ def clear_halt(state_root: Path, channel: str) -> bool:
 # Rebalance orchestration
 # ---------------------------------------------------------------------------
 
+# A7 (lessons.md #53): cadence-gate default — match the backtest's `rebal=21d`.
+DEFAULT_REBAL_PERIOD_DAYS = 21
+
+
 @dataclass
 class OrchestrationResult:
     timestamp_utc: str
@@ -157,6 +161,11 @@ class OrchestrationResult:
     new_halt_written: bool = False
     rebalance_result: Optional[dict] = None
     reconciliation_result: Optional[dict] = None
+    # A7: cadence-gate signalling
+    cadence_blocked: bool = False
+    cadence_reason: Optional[str] = None
+    days_since_last_rebalance: Optional[float] = None
+    is_rotation: Optional[bool] = None
 
 
 def load_closes(
@@ -193,6 +202,8 @@ def orchestrate_rebalance(
     stale_after_hours: float = 36.0,
     min_cash_buffer_pct: float = -0.02,
     max_position_pct: float = 0.25,
+    rebal_period_days: int = DEFAULT_REBAL_PERIOD_DAYS,
+    force_rebalance: bool = False,
 ) -> OrchestrationResult:
     """One-rebalance orchestration. Idempotent given the same inputs."""
     channel = spec.name
@@ -231,11 +242,56 @@ def orchestrate_rebalance(
         log.event("rebalance_aborted", {"reason": "pre_flight_failed"}, level="error")
         return out
 
-    # Strategy run
+    # ---- A7 cadence gate (lessons.md #53) ----
+    # The backtest used `rebal=21d` (monthly). Production must match that
+    # cadence or its realized Sharpe will diverge from the backtest claim.
+    # Gate logic:
+    #   - First run (no state): always proceed (sets the cadence anchor).
+    #   - Top-K membership rotated: always proceed (this is the core signal).
+    #   - ≥ rebal_period_days since last rebalance: proceed (monthly mark).
+    #   - force_rebalance=True (operator override): proceed.
+    #   - Otherwise: log + return early. Daily cron firings hit this on the
+    #     ~20 inter-rotation days each month.
+    # Gate enforced in paper mode only; shadow mode runs to keep diagnostics
+    # informative.
     runner = StrategyRunner(
         spec=spec, broker=broker, mode=mode, log=log,
         rebalance_threshold_pct=rebalance_threshold_pct,
     )
+    target_weights, _filter_value = runner._compute_target_weights(closes)
+    prev_state = state.read()
+    days_since_last: Optional[float] = None
+    if prev_state and prev_state.last_rebalance_utc:
+        try:
+            last_dt = datetime.fromisoformat(prev_state.last_rebalance_utc)
+            days_since_last = (datetime.now(timezone.utc) - last_dt).total_seconds() / 86400.0
+        except (ValueError, TypeError):
+            days_since_last = None
+    prev_held = set(prev_state.positions.keys()) if prev_state else set()
+    target_set = set(target_weights.keys())
+    is_rotation = bool(prev_held) and (prev_held != target_set)
+    out.days_since_last_rebalance = days_since_last
+    out.is_rotation = is_rotation
+
+    if mode == "paper" and not force_rebalance and prev_state is not None:
+        first_run = days_since_last is None
+        cadence_reached = (days_since_last is not None) and (days_since_last >= rebal_period_days)
+        if not (is_rotation or cadence_reached or first_run):
+            out.cadence_blocked = True
+            out.cadence_reason = (
+                f"cadence_gate: no_rotation AND "
+                f"{days_since_last:.1f}d < {rebal_period_days}d since last rebalance"
+            )
+            log.event(
+                "cadence_gate_skipped",
+                {"days_since_last": days_since_last,
+                 "rebal_period_days": rebal_period_days,
+                 "is_rotation": is_rotation,
+                 "n_target": len(target_set), "n_held": len(prev_held)},
+                level="info",
+            )
+            return out
+
     rb_result = runner.rebalance(closes, rebalance_kind=rebalance_kind)
     out.rebalance_executed = True
     out.orders_submitted = rb_result.orders_submitted
@@ -250,7 +306,10 @@ def orchestrate_rebalance(
         log.event("halt_written", {"reason": "equivalence_check_failed"}, level="error")
         return out
 
-    # Persist intent state — only after the equivalence gate passes
+    # Persist intent state — only after the equivalence gate passes.
+    # A7: advance the cadence anchor (`last_rebalance_utc`) to "now" because
+    # this run passed the cadence gate. Daily cadence-blocked runs return
+    # early before reaching here and therefore preserve the prior anchor.
     rebalance_id = f"rb-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}-{uuid.uuid4().hex[:6]}"
     latest_prices = {sym: float(closes[sym].iloc[-1]) for sym in closes.columns
                      if not pd.isna(closes[sym].iloc[-1])}
@@ -260,6 +319,7 @@ def orchestrate_rebalance(
         target_weights=rb_result.target_weights,
         portfolio_value=rb_result.portfolio_value,
         latest_prices=latest_prices,
+        last_rebalance_utc=datetime.now(timezone.utc).isoformat(),
     )
 
     # Reconcile (paper mode only; in shadow mode there's no submit so the
@@ -333,6 +393,8 @@ def cmd_rebalance(args: argparse.Namespace) -> int:
         spec=spec, broker=broker, closes=closes, mode=args.mode,
         rebalance_kind=args.kind, log=log,
         stale_after_hours=args.stale_after_hours,
+        rebal_period_days=args.rebal_period_days,
+        force_rebalance=args.force_rebalance,
     )
     print(json.dumps(asdict(result), indent=2, default=str))
     if not result.pre_flight_ok:
@@ -341,6 +403,9 @@ def cmd_rebalance(args: argparse.Namespace) -> int:
         return 3
     if result.reconciliation_should_halt:
         return 4
+    # cadence_blocked is NOT a failure — it's a successful no-op (the
+    # scheduled run correctly decided not to act). Exit 0 so launchd
+    # doesn't treat it as a failure.
     return 0
 
 
@@ -556,6 +621,15 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Fetch even if DB bars are within stale_after_hours.")
     p_reb.add_argument("--verbose", action="store_true",
                        help="Tee log events to stdout.")
+    p_reb.add_argument("--rebal-period-days", type=int, default=DEFAULT_REBAL_PERIOD_DAYS,
+                       help=("Cadence gate threshold in days. Default 21 matches the "
+                             "backtest's `rebal=21d`. Daily firings without a top-K "
+                             "membership rotation are skipped until this many days have "
+                             "passed since the last rebalance event (lessons.md #53)."))
+    p_reb.add_argument("--force-rebalance", action="store_true",
+                       help=("Bypass the cadence gate. Use for catch-up runs or manual "
+                             "interventions when you explicitly want to re-rebalance "
+                             "regardless of how recently the strategy last fired."))
     p_reb.set_defaults(func=cmd_rebalance)
 
     p_fe = sub.add_parser("fetch", help="Standalone live-data fetch (populate DB).")

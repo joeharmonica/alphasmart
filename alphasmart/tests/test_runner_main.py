@@ -152,6 +152,204 @@ def test_orchestrate_skips_when_halt_active(mini_spec, broker, closes_and_now, t
 
 
 # ---------------------------------------------------------------------------
+# A7 cadence gate (lessons.md #53)
+# ---------------------------------------------------------------------------
+
+def _seed_prior_state(state_root, mini_spec, target_weights, last_rebal_dt):
+    """Helper: write a StateRecord with explicit last_rebalance_utc."""
+    from src.execution.state_store import StateStore
+    state = StateStore(channel=mini_spec.name, root=state_root)
+    state.write(
+        strategy=mini_spec.name,
+        rebalance_id="rb-prior",
+        target_weights=target_weights,
+        portfolio_value=100_000.0,
+        latest_prices={s: 100.0 for s in target_weights},
+        last_rebalance_utc=last_rebal_dt.isoformat(),
+    )
+
+
+def test_cadence_gate_blocks_recent_no_rotation_paper_run(
+    mini_spec, broker, closes_and_now, tmp_root, monkeypatch,
+):
+    """
+    A7: top-K membership unchanged + last rebalance was 5 days ago + paper mode
+    → cadence gate blocks the run. No orders submitted, no halt written, state
+    file unchanged.
+    """
+    closes, now = closes_and_now
+    monkeypatch.setattr("src.execution.preflight.datetime", _Now(now))
+    state_root = tmp_root / "state"
+    # Seed prior state with the SAME top-K the strategy would compute (sym_C/D/E
+    # are the 3 highest-momentum names in the fixture)
+    _seed_prior_state(
+        state_root, mini_spec,
+        target_weights={"sym_C": 1/3, "sym_D": 1/3, "sym_E": 1/3},
+        last_rebal_dt=datetime.now(timezone.utc) - timedelta(days=5),
+    )
+    log = ShadowLog(channel="orch_a7_block", root=tmp_root / "logs")
+    result = orchestrate_rebalance(
+        spec=mini_spec, broker=broker, closes=closes,
+        mode="paper", state_root=state_root, log=log,
+    )
+    assert result.cadence_blocked is True
+    assert result.cadence_reason is not None and "no_rotation" in result.cadence_reason
+    assert 4.5 < (result.days_since_last_rebalance or 0) < 5.5
+    assert result.is_rotation is False
+    assert result.rebalance_executed is False  # gate fired BEFORE runner.rebalance()
+    assert result.orders_submitted == 0
+    assert result.new_halt_written is False
+
+
+def test_cadence_gate_allows_when_rotation(
+    mini_spec, broker, closes_and_now, tmp_root, monkeypatch,
+):
+    """
+    A7: top-K membership changed (B in prior state, not in new target) AND
+    last rebalance was 1 day ago → rotation overrides cadence, runner proceeds.
+    """
+    closes, now = closes_and_now
+    monkeypatch.setattr("src.execution.preflight.datetime", _Now(now))
+    state_root = tmp_root / "state"
+    # Seed with a basket that includes sym_B (the strategy's new target won't
+    # include it because B has lower 60d momentum than C/D/E)
+    _seed_prior_state(
+        state_root, mini_spec,
+        target_weights={"sym_B": 1/3, "sym_D": 1/3, "sym_E": 1/3},
+        last_rebal_dt=datetime.now(timezone.utc) - timedelta(days=1),
+    )
+    log = ShadowLog(channel="orch_a7_rotate", root=tmp_root / "logs")
+    result = orchestrate_rebalance(
+        spec=mini_spec, broker=broker, closes=closes,
+        mode="paper", state_root=state_root, log=log,
+    )
+    assert result.cadence_blocked is False
+    assert result.is_rotation is True
+    assert result.rebalance_executed is True
+
+
+def test_cadence_gate_allows_when_period_elapsed(
+    mini_spec, broker, closes_and_now, tmp_root, monkeypatch,
+):
+    """
+    A7: top-K unchanged BUT last rebalance was 25 days ago (> 21d default) →
+    cadence reached, runner proceeds.
+    """
+    closes, now = closes_and_now
+    monkeypatch.setattr("src.execution.preflight.datetime", _Now(now))
+    state_root = tmp_root / "state"
+    _seed_prior_state(
+        state_root, mini_spec,
+        target_weights={"sym_C": 1/3, "sym_D": 1/3, "sym_E": 1/3},
+        last_rebal_dt=datetime.now(timezone.utc) - timedelta(days=25),
+    )
+    log = ShadowLog(channel="orch_a7_period", root=tmp_root / "logs")
+    result = orchestrate_rebalance(
+        spec=mini_spec, broker=broker, closes=closes,
+        mode="paper", state_root=state_root, log=log,
+    )
+    assert result.cadence_blocked is False
+    assert result.is_rotation is False
+    assert result.days_since_last_rebalance is not None and result.days_since_last_rebalance >= 21
+    assert result.rebalance_executed is True
+
+
+def test_cadence_gate_allows_when_force_rebalance(
+    mini_spec, broker, closes_and_now, tmp_root, monkeypatch,
+):
+    """A7: force_rebalance=True bypasses cadence (operator override)."""
+    closes, now = closes_and_now
+    monkeypatch.setattr("src.execution.preflight.datetime", _Now(now))
+    state_root = tmp_root / "state"
+    _seed_prior_state(
+        state_root, mini_spec,
+        target_weights={"sym_C": 1/3, "sym_D": 1/3, "sym_E": 1/3},
+        last_rebal_dt=datetime.now(timezone.utc) - timedelta(days=3),
+    )
+    log = ShadowLog(channel="orch_a7_force", root=tmp_root / "logs")
+    result = orchestrate_rebalance(
+        spec=mini_spec, broker=broker, closes=closes,
+        mode="paper", state_root=state_root, log=log,
+        force_rebalance=True,
+    )
+    assert result.cadence_blocked is False
+    assert result.rebalance_executed is True
+
+
+def test_cadence_gate_allows_first_run_no_prior_state(
+    mini_spec, broker, closes_and_now, tmp_root, monkeypatch,
+):
+    """A7: no prior state file → first run, gate always permits."""
+    closes, now = closes_and_now
+    monkeypatch.setattr("src.execution.preflight.datetime", _Now(now))
+    state_root = tmp_root / "state"
+    log = ShadowLog(channel="orch_a7_first", root=tmp_root / "logs")
+    result = orchestrate_rebalance(
+        spec=mini_spec, broker=broker, closes=closes,
+        mode="paper", state_root=state_root, log=log,
+    )
+    assert result.cadence_blocked is False
+    assert result.rebalance_executed is True
+    # First run also writes state with last_rebalance_utc = now
+    from src.execution.state_store import StateStore
+    state = StateStore(channel=mini_spec.name, root=state_root).read()
+    assert state is not None and state.last_rebalance_utc is not None
+
+
+def test_cadence_gate_advances_anchor_only_on_pass(
+    mini_spec, broker, closes_and_now, tmp_root, monkeypatch,
+):
+    """
+    A7: a cadence-blocked run must NOT update last_rebalance_utc. Otherwise
+    the gate would reset itself and become useless.
+    """
+    closes, now = closes_and_now
+    monkeypatch.setattr("src.execution.preflight.datetime", _Now(now))
+    state_root = tmp_root / "state"
+    anchor_dt = datetime.now(timezone.utc) - timedelta(days=5)
+    _seed_prior_state(
+        state_root, mini_spec,
+        target_weights={"sym_C": 1/3, "sym_D": 1/3, "sym_E": 1/3},
+        last_rebal_dt=anchor_dt,
+    )
+    log = ShadowLog(channel="orch_a7_anchor", root=tmp_root / "logs")
+    result = orchestrate_rebalance(
+        spec=mini_spec, broker=broker, closes=closes,
+        mode="paper", state_root=state_root, log=log,
+    )
+    assert result.cadence_blocked is True
+    # State file must still have the original anchor
+    from src.execution.state_store import StateStore
+    state = StateStore(channel=mini_spec.name, root=state_root).read()
+    assert state.last_rebalance_utc == anchor_dt.isoformat()
+
+
+def test_cadence_gate_bypassed_in_shadow_mode(
+    mini_spec, broker, closes_and_now, tmp_root, monkeypatch,
+):
+    """
+    A7: shadow mode is for diagnostics and should always run (bypassing the
+    gate) so operators get a fresh signal-equivalence + state preview.
+    """
+    closes, now = closes_and_now
+    monkeypatch.setattr("src.execution.preflight.datetime", _Now(now))
+    state_root = tmp_root / "state"
+    _seed_prior_state(
+        state_root, mini_spec,
+        target_weights={"sym_C": 1/3, "sym_D": 1/3, "sym_E": 1/3},
+        last_rebal_dt=datetime.now(timezone.utc) - timedelta(days=2),
+    )
+    log = ShadowLog(channel="orch_a7_shadow", root=tmp_root / "logs")
+    result = orchestrate_rebalance(
+        spec=mini_spec, broker=broker, closes=closes,
+        mode="shadow", state_root=state_root, log=log,
+    )
+    assert result.cadence_blocked is False  # gate bypassed in shadow
+    assert result.rebalance_executed is True
+    assert result.orders_submitted == 0  # shadow still doesn't submit
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 

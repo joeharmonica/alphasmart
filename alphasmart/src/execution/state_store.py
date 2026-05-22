@@ -57,6 +57,12 @@ class StateRecord:
     positions: dict[str, ExpectedPosition]
     cash_weight: float
     portfolio_value: float
+    # A7 (lessons.md #53): set on paper-mode runs that pass the cadence
+    # gate. Daily firings that are cadence-skipped do NOT update this, so
+    # it reliably tracks the time since the last actual rebalance event
+    # (as the backtest's `rebal=21d` would have). Optional for back-compat
+    # with state files written before A7.
+    last_rebalance_utc: Optional[str] = None
 
 
 class StateStore:
@@ -93,7 +99,19 @@ class StateStore:
         target_weights: dict[str, float],
         portfolio_value: float,
         latest_prices: dict[str, float],
+        last_rebalance_utc: Optional[str] = None,
     ) -> StateRecord:
+        """
+        Write a new state snapshot.
+
+        Args:
+          last_rebalance_utc: explicit value to set. If None, INHERIT the
+            previous record's value (or set to now if no prior state).
+            Callers that pass the current timestamp here are signalling
+            "this run passed the cadence gate." Cadence-blocked runs
+            shouldn't be calling write() at all — but if they do, inheriting
+            preserves the cadence anchor.
+        """
         positions: dict[str, ExpectedPosition] = {}
         for sym, w in target_weights.items():
             price = latest_prices.get(sym)
@@ -103,6 +121,16 @@ class StateStore:
             positions[sym] = ExpectedPosition(qty=qty, weight=float(w))
 
         cash_weight = max(0.0, 1.0 - sum(target_weights.values()))
+
+        # Inherit last_rebalance_utc if not explicitly set, falling back to now
+        # for first-ever runs (no prior state).
+        if last_rebalance_utc is None:
+            prev = self.read()
+            last_rebalance_utc = (
+                prev.last_rebalance_utc if (prev and prev.last_rebalance_utc)
+                else datetime.now(timezone.utc).isoformat()
+            )
+
         rec = StateRecord(
             last_updated_utc=datetime.now(timezone.utc).isoformat(),
             git_sha=_git_sha(),
@@ -111,6 +139,7 @@ class StateStore:
             positions=positions,
             cash_weight=cash_weight,
             portfolio_value=float(portfolio_value),
+            last_rebalance_utc=last_rebalance_utc,
         )
         self._atomic_write(rec)
         self._append_history(rec)
@@ -133,6 +162,7 @@ class StateStore:
                 positions=positions,
                 cash_weight=float(data["cash_weight"]),
                 portfolio_value=float(data["portfolio_value"]),
+                last_rebalance_utc=data.get("last_rebalance_utc"),
             )
         except (json.JSONDecodeError, KeyError, ValueError):
             return None
