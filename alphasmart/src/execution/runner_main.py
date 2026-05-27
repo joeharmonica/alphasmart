@@ -140,8 +140,17 @@ def clear_halt(state_root: Path, channel: str) -> bool:
 # Rebalance orchestration
 # ---------------------------------------------------------------------------
 
-# A7 (lessons.md #53): cadence-gate default — match the backtest's `rebal=21d`.
-DEFAULT_REBAL_PERIOD_DAYS = 21
+# A9 (lessons.md #55): cadence gate — fires on the first cron firing of a
+# new calendar month, gated by a minimum trading-day guard to suppress
+# back-to-back firings across month boundaries (e.g. anchor Jun 30 →
+# Jul 1 would NOT fire). Replaces A7's days-since-anchor logic which
+# conflated calendar days with the backtest's bar-count `rebal=21d` and
+# fired ~6 trading days too early on average.
+#
+# `min_trading_days = 14` empirically: a typical month has ~21 trading
+# days; 14 covers the shortest reasonable inter-month window (anchor
+# late in month, fire early next month) without re-firing too eagerly.
+DEFAULT_MIN_TRADING_DAYS = 14
 
 
 @dataclass
@@ -202,7 +211,7 @@ def orchestrate_rebalance(
     stale_after_hours: float = 36.0,
     min_cash_buffer_pct: float = -0.02,
     max_position_pct: float = 0.25,
-    rebal_period_days: int = DEFAULT_REBAL_PERIOD_DAYS,
+    min_trading_days: int = DEFAULT_MIN_TRADING_DAYS,
     force_rebalance: bool = False,
 ) -> OrchestrationResult:
     """One-rebalance orchestration. Idempotent given the same inputs."""
@@ -242,31 +251,45 @@ def orchestrate_rebalance(
         log.event("rebalance_aborted", {"reason": "pre_flight_failed"}, level="error")
         return out
 
-    # ---- A7 cadence gate (lessons.md #53) ----
-    # The backtest used `rebal=21d` (monthly). Production must match that
-    # cadence or its realized Sharpe will diverge from the backtest claim.
-    # Gate logic:
-    #   - First run (no state): always proceed (sets the cadence anchor).
-    #   - Top-K membership rotated: always proceed (this is the core signal).
-    #   - ≥ rebal_period_days since last rebalance: proceed (monthly mark).
-    #   - force_rebalance=True (operator override): proceed.
-    #   - Otherwise: log + return early. Daily cron firings hit this on the
-    #     ~20 inter-rotation days each month.
-    # Gate enforced in paper mode only; shadow mode runs to keep diagnostics
-    # informative.
+    # ---- A9 cadence gate (lessons.md #55, supersedes A7 calendar-day logic) ----
+    # The backtest used `rebal=21d` = 21 BARS = ~21 trading days = ~31 calendar
+    # days. A7's first cut used `days_since_last >= 21` in calendar days,
+    # firing the monthly mark ~6 trading days too early. A9 replaces that
+    # with a calendar-month boundary + trading-day guard:
+    #
+    #   - First run (no state) → always proceed.
+    #   - Top-K membership rotated → always proceed (core signal).
+    #   - It's a new calendar month AND ≥ min_trading_days trading days have
+    #     elapsed since the anchor → proceed (monthly mark).
+    #   - force_rebalance → proceed.
+    #   - Otherwise → cadence_blocked, return early.
+    #
+    # The new-month gate makes the schedule human-predictable ("first
+    # successful cron of each month") and robust to data gaps + holidays.
+    # The trading-day guard prevents the Jun-30 → Jul-1 edge case where
+    # the rebalance would otherwise fire twice in two days across a month
+    # boundary. Gate enforced in paper mode only; shadow always runs.
+    import numpy as np
+
     runner = StrategyRunner(
         spec=spec, broker=broker, mode=mode, log=log,
         rebalance_threshold_pct=rebalance_threshold_pct,
     )
     target_weights, _filter_value = runner._compute_target_weights(closes)
     prev_state = state.read()
+    now_utc = datetime.now(timezone.utc)
     days_since_last: Optional[float] = None
+    trading_days_since_last: Optional[int] = None
+    different_month = False
+    last_dt: Optional[datetime] = None
     if prev_state and prev_state.last_rebalance_utc:
         try:
             last_dt = datetime.fromisoformat(prev_state.last_rebalance_utc)
-            days_since_last = (datetime.now(timezone.utc) - last_dt).total_seconds() / 86400.0
+            days_since_last = (now_utc - last_dt).total_seconds() / 86400.0
+            trading_days_since_last = int(np.busday_count(last_dt.date(), now_utc.date()))
+            different_month = (now_utc.year, now_utc.month) != (last_dt.year, last_dt.month)
         except (ValueError, TypeError):
-            days_since_last = None
+            pass
     prev_held = set(prev_state.positions.keys()) if prev_state else set()
     target_set = set(target_weights.keys())
     is_rotation = bool(prev_held) and (prev_held != target_set)
@@ -274,18 +297,31 @@ def orchestrate_rebalance(
     out.is_rotation = is_rotation
 
     if mode == "paper" and not force_rebalance and prev_state is not None:
-        first_run = days_since_last is None
-        cadence_reached = (days_since_last is not None) and (days_since_last >= rebal_period_days)
+        first_run = last_dt is None
+        cadence_reached = (
+            different_month
+            and trading_days_since_last is not None
+            and trading_days_since_last >= min_trading_days
+        )
         if not (is_rotation or cadence_reached or first_run):
+            if not different_month:
+                cadence_reason = (
+                    f"cadence_gate: same calendar month as last rebalance "
+                    f"({last_dt.strftime('%Y-%m') if last_dt else '?'})"
+                )
+            else:
+                cadence_reason = (
+                    f"cadence_gate: new month but only {trading_days_since_last}td elapsed "
+                    f"< {min_trading_days}td guard"
+                )
             out.cadence_blocked = True
-            out.cadence_reason = (
-                f"cadence_gate: no_rotation AND "
-                f"{days_since_last:.1f}d < {rebal_period_days}d since last rebalance"
-            )
+            out.cadence_reason = cadence_reason
             log.event(
                 "cadence_gate_skipped",
                 {"days_since_last": days_since_last,
-                 "rebal_period_days": rebal_period_days,
+                 "trading_days_since_last": trading_days_since_last,
+                 "different_month": different_month,
+                 "min_trading_days": min_trading_days,
                  "is_rotation": is_rotation,
                  "n_target": len(target_set), "n_held": len(prev_held)},
                 level="info",
@@ -393,7 +429,7 @@ def cmd_rebalance(args: argparse.Namespace) -> int:
         spec=spec, broker=broker, closes=closes, mode=args.mode,
         rebalance_kind=args.kind, log=log,
         stale_after_hours=args.stale_after_hours,
-        rebal_period_days=args.rebal_period_days,
+        min_trading_days=args.min_trading_days,
         force_rebalance=args.force_rebalance,
     )
     print(json.dumps(asdict(result), indent=2, default=str))
@@ -621,11 +657,13 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Fetch even if DB bars are within stale_after_hours.")
     p_reb.add_argument("--verbose", action="store_true",
                        help="Tee log events to stdout.")
-    p_reb.add_argument("--rebal-period-days", type=int, default=DEFAULT_REBAL_PERIOD_DAYS,
-                       help=("Cadence gate threshold in days. Default 21 matches the "
-                             "backtest's `rebal=21d`. Daily firings without a top-K "
-                             "membership rotation are skipped until this many days have "
-                             "passed since the last rebalance event (lessons.md #53)."))
+    p_reb.add_argument("--min-trading-days", type=int, default=DEFAULT_MIN_TRADING_DAYS,
+                       help=("Trading-day guard for the calendar-month cadence gate "
+                             "(lessons.md #55). The gate fires on the first cron of a "
+                             "new calendar month AND requires at least this many trading "
+                             "days since the last rebalance. Default 14 — covers the "
+                             "shortest reasonable cross-month window without re-firing too "
+                             "eagerly (e.g. Jun-30 → Jul-1 stays blocked)."))
     p_reb.add_argument("--force-rebalance", action="store_true",
                        help=("Bypass the cadence gate. Use for catch-up runs or manual "
                              "interventions when you explicitly want to re-rebalance "

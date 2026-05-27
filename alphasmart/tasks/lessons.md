@@ -1123,3 +1123,67 @@ All in `reports/xsec_cadence_study/`:
 ### Rule
 
 **When a live-vs-backtest divergence is found (lessons #53), re-run the backtest with the live variant before deciding which to canonicalize.** Sometimes the implementation drift is a *bug fix* in disguise (the live system did something smarter than the original backtest design). Sometimes it's a *cost regression* hiding under benign appearances. Run both, compare on the canonical evaluation window, and pick the one that survives realistic friction. Default to the backtest-matching version *unless* the data shows a clear, robust improvement under realistic assumptions. Production-realistic slippage (typically 10-20 bps for retail equity) is the right realism level — not the 5-bps optimal-case figure most backtests assume.
+
+---
+
+## 55. A7's "rebal_period_days" Conflated Calendar Days with Backtest Bars — A9 Fixes via Calendar-Month + Trading-Day Guard
+
+**Bug surfaced by user review (2026-05-27):** A7's cadence gate used `(now - anchor).total_seconds() / 86400` — **calendar days**. But the backtest's `rebal=21d` means **21 BARS = 21 trading days ≈ 31 calendar days**. So A7's 21-calendar-day default fired the monthly mark ~6 trading days too early on average. Same conceptual bug as lessons #45 (yfinance NAV vs gross return — wrong unit) and #52 A5 (qty drift vs $-band — wrong unit). **Cardinality of "days" is a recurring trap whenever finance code spans the trading/calendar boundary.**
+
+### Three fix options considered
+
+| Option | Approach | Pros | Cons |
+|---|---|---|---|
+| A | Count trading days via `np.busday_count` between anchor and now | Most faithful to backtest semantics | Needs holiday calendar for full precision; +20 LOC |
+| B | Bump default to 31 calendar days | One-liner | Imprecise; doesn't address the unit-bug root cause |
+| **C** ← chosen | **Fire on first cron of new calendar month, gated by ≥ N trading days** | Human-predictable ("first cron of next month"); robust to data gaps/holidays; doesn't drift; matches academic month-end convention | Slightly diverges from bar-anchored backtest (statistically equivalent over time) |
+
+### A9 design
+
+```python
+def _cadence_reached(now_utc, anchor_utc, min_trading_days=14):
+    different_month = (now_utc.year, now_utc.month) != (anchor_utc.year, anchor_utc.month)
+    if not different_month: return False
+    return np.busday_count(anchor_utc.date(), now_utc.date()) >= min_trading_days
+```
+
+Replaces A7's `days_since_last >= rebal_period_days` check. The trading-day guard prevents the **Jun-30 → Jul-1 edge case** (anchor on June 30, next cron July 1 would otherwise fire 1 calendar day later — clearly wrong). 14 trading days ≈ 3 calendar weeks, the lower bound for "a meaningful month has passed."
+
+The other escape hatches are unchanged:
+- First run (no anchor) → always proceed
+- Top-K membership rotation → always proceed
+- `--force-rebalance` → always proceed
+
+### CLI change
+
+`--rebal-period-days` (calendar days, default 21) → `--min-trading-days` (default 14). Production launchd plist didn't pass the flag, so no operational impact from the rename.
+
+### Tests (+2, 14 total in `test_runner_main.py`, full suite 309 green)
+
+- `test_cadence_gate_blocks_new_month_below_trading_day_guard` — Jun-30 → Jul-1 case (anchor late in prior month, only 3 td elapsed → blocked even though it's a new month)
+- `test_cadence_gate_blocks_same_month_regardless_of_days` — 5 days elapsed but same calendar month → blocked
+
+Updated existing tests:
+- `cadence_reason` no longer says `"no_rotation AND Xd < 21d"`; now says `"same calendar month as last rebalance (YYYY-MM)"` or `"new month but only Xtd elapsed < 14td guard"` depending on which condition blocked
+- `allows_when_period_elapsed` test now uses 45-day anchor (guarantees both different-month AND ≥14td elapsed) rather than 25 days (which would have passed under A7 but is ambiguous under A9 depending on month boundary)
+
+### Live verification (2026-05-27 11:30 HK)
+
+Kickstart at 03:29 UTC (11:29 HK):
+- Anchor: 2026-05-22 (same calendar month — May)
+- Without rotation, A9 would have **blocked** (`same calendar month as last rebalance (2026-05)`)
+- BUT `is_rotation=True` (top-5 shuffled: AMD/ASML/GOOG kept, NVDA+AVGO → AMZN+QQQ rotation)
+- → rotation overrode cadence → `cadence_blocked=False`, 5 orders submitted, reconciler clean
+- Orders queued (status=accepted) until market open at 21:30 HK
+
+### Operational consequence
+
+Next cron fire times (assuming no rotation):
+- Anchor now = 2026-05-27 → blocked through end of May, blocked through early June until ≥14 trading days have passed
+- First eligible firing: **Mon 2026-06-15** (first weekday cron of June with 14+ trading days elapsed from late-May anchor)
+
+If a rotation happens before then, the rotation override fires immediately — same as today. The new month is always permissive for the cadence override, but rotations are independent.
+
+### Rule
+
+**Whenever finance code references "days," resolve the ambiguity explicitly: calendar days, trading days, or business days (per a specific holiday calendar).** The backtest's `rebal=21d` is in bars (trading days, no weekends). The live runner running on calendar time defaults to calendar days. Crossing that boundary without conversion is the same class of bug as lesson #45 (yfinance prices vs gross-of-ER) and lesson #52 A5 (qty drift vs $-band threshold). Adjacent rule: **prefer calendar-anchored cadence rules over duration-anchored ones for scheduled jobs** — "first cron of each month" is more predictable, easier to verify, and more robust to gaps than "every N days since last anchor." Bar-count cadence is correct in the backtest (where bars are the only timeline); calendar-month cadence is correct in live (where humans + holidays + data gaps exist).
