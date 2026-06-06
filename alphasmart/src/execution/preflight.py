@@ -15,9 +15,10 @@ Six checks from the design:
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Callable, Optional, TypeVar
 
 import pandas as pd
 
@@ -30,6 +31,55 @@ class CheckResult:
     ok: bool
     reason: Optional[str] = None
     detail: Optional[dict] = None
+
+
+# A6 (lessons.md #56): retry transient broker REST failures once. Two
+# consecutive Alpaca network drops (2026-05-21, 2026-05-22) blocked
+# back-to-back rebalances on `position_concentration` and `broker_connectivity`
+# respectively. The endpoint is healthy seconds later; a single retry would
+# have rescued both. Only retry on TRANSIENT classes — never on auth /
+# credential / 4xx errors that indicate a real misconfiguration.
+DEFAULT_BROKER_RETRY_BACKOFF_S = 5.0
+T = TypeVar("T")
+
+
+def _is_transient_broker_error(exc: BaseException) -> bool:
+    """Return True if `exc` looks like a network blip we should retry."""
+    # urllib3 / requests raise these for connection drops, resets, and
+    # read-side hangs. Alpaca SDK propagates them as-is.
+    transient_types = (
+        "RemoteDisconnected", "ConnectionError", "ConnectionResetError",
+        "ProtocolError", "Timeout", "TimeoutError", "ReadTimeout", "ConnectTimeout",
+        "ConnectionAbortedError", "ChunkedEncodingError",
+    )
+    msg_markers = (
+        "Connection aborted", "Connection reset", "Remote end closed",
+        "Read timed out", "Max retries exceeded", "ChunkedEncodingError",
+    )
+    name = type(exc).__name__
+    if name in transient_types:
+        return True
+    s = str(exc)
+    return any(m in s for m in msg_markers)
+
+
+def _broker_call_with_retry(
+    fn: Callable[[], T],
+    *,
+    backoff_s: float = DEFAULT_BROKER_RETRY_BACKOFF_S,
+) -> T:
+    """
+    Call `fn()`; on a transient exception, sleep `backoff_s` and retry once.
+    Non-transient exceptions (auth, missing-credential, 4xx) propagate
+    immediately on the first attempt — no silent rescue of real bugs.
+    """
+    try:
+        return fn()
+    except Exception as exc:  # noqa: BLE001 — broker SDK propagates many types
+        if not _is_transient_broker_error(exc):
+            raise
+        time.sleep(backoff_s)
+        return fn()  # second attempt: any failure (transient or not) propagates
 
 
 def check_data_freshness(
@@ -102,7 +152,7 @@ def check_filter_input_available(
 def check_broker_connectivity(broker: AlpacaPaperBroker) -> CheckResult:
     """get_account succeeds and account is in good standing."""
     try:
-        acc = broker.get_account()
+        acc = _broker_call_with_retry(broker.get_account)
     except Exception as exc:
         return CheckResult("broker_connectivity", False, f"get_account failed: {exc}")
     if acc.trading_blocked:
@@ -125,7 +175,7 @@ def check_cash_buffer(
 ) -> CheckResult:
     """Free cash ≥ min_cash_buffer_pct of portfolio_value (covers cmsn + slippage)."""
     try:
-        acc = broker.get_account()
+        acc = _broker_call_with_retry(broker.get_account)
     except Exception as exc:
         return CheckResult("cash_buffer", False, f"get_account failed: {exc}")
     if acc.portfolio_value <= 0:
@@ -146,8 +196,8 @@ def check_position_concentration(
 ) -> CheckResult:
     """No single position should exceed max_position_pct of portfolio."""
     try:
-        acc = broker.get_account()
-        positions = broker.get_positions()
+        acc = _broker_call_with_retry(broker.get_account)
+        positions = _broker_call_with_retry(broker.get_positions)
     except Exception as exc:
         return CheckResult("position_concentration", False, f"broker call failed: {exc}")
     if acc.portfolio_value <= 0:

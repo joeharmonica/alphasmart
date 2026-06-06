@@ -175,3 +175,85 @@ def test_run_all_returns_six_results(closes, broker):
     )
     assert len(results) == 6
     assert all(r.ok for r in results)
+
+
+# ---------------------------------------------------------------------------
+# A6 (lessons.md #56) — preflight retry on transient broker network failures
+# ---------------------------------------------------------------------------
+
+class _FlakyBroker:
+    """Broker stub whose method `fn_name` fails the first N calls with the
+    given exception, then succeeds. Used to test the retry helper without
+    monkeypatching the real Alpaca SDK."""
+    def __init__(self, real, fn_name, exc, n_fails):
+        self._real = real
+        self._fn_name = fn_name
+        self._exc = exc
+        self._n_fails = n_fails
+        self._calls = 0
+
+    def __getattr__(self, name):
+        target = getattr(self._real, name)
+        if name != self._fn_name:
+            return target
+        def wrapped(*a, **kw):
+            self._calls += 1
+            if self._calls <= self._n_fails:
+                raise self._exc
+            return target(*a, **kw)
+        return wrapped
+
+
+def test_a6_retry_rescues_single_transient_failure(broker, monkeypatch):
+    monkeypatch.setattr("src.execution.preflight.time.sleep", lambda _: None)
+    """One transient RemoteDisconnected → retry succeeds."""
+    from http.client import RemoteDisconnected
+    flaky = _FlakyBroker(broker, "get_account", RemoteDisconnected("Remote end closed"), n_fails=1)
+    result = check_broker_connectivity(flaky)
+    assert result.ok is True, f"retry should rescue first transient: {result.reason}"
+    assert flaky._calls == 2  # one failure + one success
+
+
+def test_a6_retry_propagates_after_second_failure(broker, monkeypatch):
+    """Two consecutive transient failures → final exception caught as preflight fail."""
+    monkeypatch.setattr("src.execution.preflight.time.sleep", lambda _: None)
+    from http.client import RemoteDisconnected
+    flaky = _FlakyBroker(broker, "get_account", RemoteDisconnected("Remote end closed"), n_fails=2)
+    result = check_broker_connectivity(flaky)
+    assert result.ok is False
+    assert "get_account failed" in (result.reason or "")
+    assert flaky._calls == 2  # only retries ONCE (not infinitely)
+
+
+def test_a6_retry_does_not_fire_on_auth_error(broker):
+    """Non-transient errors (auth, 4xx, value) propagate on first attempt — no retry."""
+    flaky = _FlakyBroker(broker, "get_account", ValueError("invalid api key"), n_fails=10)
+    result = check_broker_connectivity(flaky)
+    assert result.ok is False
+    assert "invalid api key" in (result.reason or "")
+    assert flaky._calls == 1  # did NOT retry — would have called more
+
+
+def test_a6_retry_applies_to_position_concentration(broker, monkeypatch):
+    """position_concentration calls get_account AND get_positions; both wrapped."""
+    monkeypatch.setattr("src.execution.preflight.time.sleep", lambda _: None)
+    from urllib3.exceptions import ProtocolError
+    # First get_account call fails transiently, second succeeds; get_positions OK.
+    flaky = _FlakyBroker(broker, "get_account", ProtocolError("Connection aborted"), n_fails=1)
+    result = check_position_concentration(flaky)
+    assert result.ok is True, f"retry should rescue: {result.reason}"
+
+
+def test_a6_transient_classifier_recognises_known_patterns():
+    """The _is_transient_broker_error helper covers the patterns we've seen in prod."""
+    from src.execution.preflight import _is_transient_broker_error
+    from http.client import RemoteDisconnected
+    assert _is_transient_broker_error(RemoteDisconnected("anything"))
+    assert _is_transient_broker_error(ConnectionResetError("reset"))
+    assert _is_transient_broker_error(TimeoutError("timed out"))
+    assert _is_transient_broker_error(Exception("('Connection aborted.', ...)"))
+    assert _is_transient_broker_error(Exception("Max retries exceeded"))
+    # Real config bugs should NOT be classified as transient
+    assert not _is_transient_broker_error(ValueError("missing API key"))
+    assert not _is_transient_broker_error(KeyError("ALPACA_SECRET"))
+    assert not _is_transient_broker_error(PermissionError("forbidden"))

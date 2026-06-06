@@ -1187,3 +1187,80 @@ If a rotation happens before then, the rotation override fires immediately — s
 ### Rule
 
 **Whenever finance code references "days," resolve the ambiguity explicitly: calendar days, trading days, or business days (per a specific holiday calendar).** The backtest's `rebal=21d` is in bars (trading days, no weekends). The live runner running on calendar time defaults to calendar days. Crossing that boundary without conversion is the same class of bug as lesson #45 (yfinance prices vs gross-of-ER) and lesson #52 A5 (qty drift vs $-band threshold). Adjacent rule: **prefer calendar-anchored cadence rules over duration-anchored ones for scheduled jobs** — "first cron of each month" is more predictable, easier to verify, and more robust to gaps than "every N days since last anchor." Bar-count cadence is correct in the backtest (where bars are the only timeline); calendar-month cadence is correct in live (where humans + holidays + data gaps exist).
+
+---
+
+## 56. A6 — Preflight Retry on Transient Broker Network Failures Closes the Most Frequent Class of False-Negative Preflight Aborts
+
+**Two recurring incidents (2026-05-21, 2026-05-22):** scheduled launchd rebalances were blocked by preflight failures on `position_concentration` (Thu) and `broker_connectivity` (Fri) respectively. Both showed the same error in the log:
+
+```
+broker call failed: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+```
+
+Alpaca's REST endpoint had transient network drops at exactly the time our 21:00 HK cron fires — which is 09:00 ET, the US-equity market-open spike when retail traffic on the API peaks. The endpoint is healthy seconds later (manual `health-check --check-broker` 5 minutes after the failure consistently returned exit 0).
+
+**Why this is a problem:** every blocked rebalance is one fewer attempt to act on the strategy's signal. Two consecutive blocks in a week meant the strategy went 4 trading days without a rebalance — which then accumulated weight drift that needed correction. A single retry would have prevented the entire chain.
+
+### A6 design
+
+Added a retry wrapper in `preflight.py`:
+
+```python
+DEFAULT_BROKER_RETRY_BACKOFF_S = 5.0
+
+def _is_transient_broker_error(exc):
+    """RemoteDisconnected, ConnectionError, ConnectionReset, Timeout, ProtocolError,
+    ChunkedEncodingError + message-substring catches for 'Connection aborted',
+    'Remote end closed', 'Max retries exceeded'. Auth errors (ValueError, KeyError,
+    PermissionError) explicitly NOT transient — real config bugs propagate."""
+    ...
+
+def _broker_call_with_retry(fn, *, backoff_s=DEFAULT_BROKER_RETRY_BACKOFF_S):
+    try:
+        return fn()
+    except Exception as exc:
+        if not _is_transient_broker_error(exc):
+            raise
+        time.sleep(backoff_s)
+        return fn()   # one retry; second failure (transient or not) propagates
+```
+
+Applied to all three broker-dependent preflight checks (`broker_connectivity`, `cash_buffer`, `position_concentration` — all call `get_account()` and/or `get_positions()`).
+
+**Three design constraints honored:**
+1. **Only one retry.** Infinite loops mask real outages. After two consecutive failures, the preflight cleanly aborts with the original error message in the log — the operator gets the actual diagnostic.
+2. **No retry on auth errors.** A missing API key or wrong endpoint should fail immediately and loudly. The classifier whitelist is for network-level signatures only.
+3. **No retry on credential / 4xx / value errors.** Type-name match + message-substring match are both narrow; `_is_transient_broker_error` returns `False` for anything else.
+
+### Tests (+5, full suite 314 green, +0 regressions)
+
+| Test | Verifies |
+|---|---|
+| `retry_rescues_single_transient_failure` | One `RemoteDisconnected` then success → preflight ok |
+| `retry_propagates_after_second_failure` | Two consecutive failures → preflight fails with the real message; retry doesn't loop |
+| `retry_does_not_fire_on_auth_error` | `ValueError("invalid api key")` propagates on first attempt (1 call only) |
+| `retry_applies_to_position_concentration` | Confirms wrapper wraps both `get_account` AND `get_positions` |
+| `transient_classifier_recognises_known_patterns` | Coverage matrix — known transient types pass, known non-transient types reject |
+
+The classifier was sanity-checked against the actual production error string (`('Connection aborted.', RemoteDisconnected(...))`) and correctly returns `True`. Tests use `monkeypatch.setattr("preflight.time.sleep", lambda _: None)` to keep the suite fast (0.4s for the file).
+
+### Live verification
+
+Ran the three retry-wrapped checks against the real Alpaca paper account end-to-end:
+
+```
+broker_connectivity      ok=True
+cash_buffer              ok=False (cash buffer 0.0056 < 0.01)  # known #42 issue, not A6
+position_concentration   ok=True
+```
+
+All three succeed when the network is healthy. The retry path can't be exercised live without manufacturing a network drop (lessons #43 caveat: real failures don't reproduce on demand) — but the unit tests cover the classifier + retry semantics, and the classifier whitelist was derived from the actual production error messages.
+
+### Forward-looking risk
+
+If Alpaca's REST endpoint has a TRUE multi-second outage (not just a single connection drop), A6 still fails after retry. The preflight then aborts as designed and A3 raises a `state_stale` alert within 8h. That's the right escalation: we don't want infinite retries masking a real degraded-broker condition. For multi-hour outages we'd need a separate failover (different broker, batched retry-with-jitter, etc.) which is out of scope.
+
+### Rule
+
+**Distinguish transient infrastructure failures from real bugs at the preflight layer.** Network drops, connection resets, and protocol errors are statistically inevitable on any REST API; preflight should rescue them with bounded retry. But auth errors, missing credentials, type errors, and 4xx responses are deterministic — they should fail immediately and loudly so the operator can fix the root cause. The classifier (`_is_transient_broker_error`) is the contract; whitelist-only matching is the safe default. **Adjacent rule:** **retry once, never more.** Multi-retry strategies hide failure modes; one retry rescues the common case without masking the rare-but-real degraded-broker scenario.
