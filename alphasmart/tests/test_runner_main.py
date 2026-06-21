@@ -16,6 +16,7 @@ from src.execution.shadow_log import ShadowLog
 from src.execution.runner_main import (
     orchestrate_rebalance, build_equity_spec, EQUITY_UNIVERSE,
     write_halt, read_halt, clear_halt,
+    build_parser, cmd_rebalance,
 )
 from src.execution.strategy_runner import (
     StrategySpec, xsec_momentum_target_weights, binary_200ma_filter,
@@ -444,3 +445,78 @@ class _Now:
         return self.fixed.astimezone(tz)
     def __getattr__(self, name):
         return getattr(self._real, name)
+
+
+# ---------------------------------------------------------------------------
+# A11 (lessons.md #58) — decouple poller skip_if_fresh cutoff from the
+# preflight data_freshness threshold. Bug: both consumed the single
+# --stale-after-hours flag, so A10's bump (50h -> 96h, to kill the Monday
+# false-positive on the *preflight* check) silently let the live poller
+# skip re-fetching any symbol for up to 4 days once a bar landed inside
+# that window — freezing its data with no exception, no error log, and a
+# misleadingly green "Fetched N bars" line (the fetch succeeded; it was
+# just never re-attempted).
+# ---------------------------------------------------------------------------
+
+def test_parser_decouples_poll_fresh_hours_from_stale_after_hours():
+    """The two thresholds must be independently settable CLI flags."""
+    parser = build_parser()
+    args = parser.parse_args([
+        "rebalance", "--stale-after-hours", "96", "--poll-fresh-hours", "20",
+    ])
+    assert args.stale_after_hours == 96.0
+    assert args.poll_fresh_hours == 20.0
+
+
+def test_parser_poll_fresh_hours_default_is_tighter_than_stale_after_hours():
+    """Defaults alone must not reintroduce the bug: poll cutoff < preflight cutoff."""
+    parser = build_parser()
+    args = parser.parse_args(["rebalance"])
+    assert args.poll_fresh_hours < args.stale_after_hours
+
+
+def test_cmd_rebalance_passes_poll_fresh_hours_not_stale_after_hours_to_poller(
+    tmp_root, monkeypatch,
+):
+    """
+    Regression test for A11: cmd_rebalance must call LiveDataPoller.poll()
+    with args.poll_fresh_hours, never args.stale_after_hours — otherwise a
+    lenient preflight threshold silently starves the daily data poll.
+    """
+    monkeypatch.setattr(
+        "src.execution.shadow_log.ShadowLog._default_root",
+        staticmethod(lambda: tmp_root / "logs"),
+    )
+
+    captured = {}
+
+    class _StubPoller:
+        def __init__(self, db_url, log):
+            pass
+
+        def poll(self, **kwargs):
+            captured.update(kwargs)
+            from src.execution.live_data import PollResult
+            return PollResult(
+                timestamp_utc="2026-06-21T00:00:00Z", timeframe="1d",
+                universe_size=len(kwargs.get("universe", [])),
+                symbols_ok=0, symbols_error=0, total_bars_inserted=0,
+                elapsed_total_ms=0, per_symbol=[], coverage_ok=True,
+            )
+
+    monkeypatch.setattr("src.execution.runner_main.LiveDataPoller", _StubPoller)
+
+    parser = build_parser()
+    args = parser.parse_args([
+        "rebalance", "--mode", "paper", "--mock",
+        "--db-url", f"sqlite:///{tmp_root}/empty.db",
+        "--fetch-before-rebalance",
+        "--stale-after-hours", "96",
+        "--poll-fresh-hours", "20",
+    ])
+    cmd_rebalance(args)  # DB is empty -> returns 1 after the poll; that's fine
+
+    assert captured.get("stale_after_hours") == 20.0, (
+        f"poller got {captured.get('stale_after_hours')}h — expected the "
+        f"dedicated poll_fresh_hours (20h), not stale_after_hours (96h)"
+    )

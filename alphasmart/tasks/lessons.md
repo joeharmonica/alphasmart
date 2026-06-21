@@ -1264,3 +1264,76 @@ If Alpaca's REST endpoint has a TRUE multi-second outage (not just a single conn
 ### Rule
 
 **Distinguish transient infrastructure failures from real bugs at the preflight layer.** Network drops, connection resets, and protocol errors are statistically inevitable on any REST API; preflight should rescue them with bounded retry. But auth errors, missing credentials, type errors, and 4xx responses are deterministic — they should fail immediately and loudly so the operator can fix the root cause. The classifier (`_is_transient_broker_error`) is the contract; whitelist-only matching is the safe default. **Adjacent rule:** **retry once, never more.** Multi-retry strategies hide failure modes; one retry rescues the common case without masking the rare-but-real degraded-broker scenario.
+
+---
+
+## 57. A10 — `--stale-after-hours` Needed Headroom for yfinance's Midnight-ET Bar Dating on Mondays
+
+**Incident (Mon 2026-06-08, health-check alarm):** `health-check --check-broker` returned exit 11 (`state_stale`) with `data_freshness latest bar age 85.0h > 50.0h`. The 50h threshold was sized off a naive Friday-close-to-Monday-evening calculation (~65h), so the alarm looked like a false positive worth raising the bar — but the *first* fix (72h) still failed, with the real age logging at **85.2h**, 20h higher than the naive estimate.
+
+**Root cause:** yfinance dates daily bars at **midnight ET of the trading day**, not the 4pm ET close time (this convention was already known from lesson #45/#52-era debugging but hadn't been applied to the staleness-threshold math). Friday's bar is therefore timestamped Friday 00:00 ET — not Friday 20:00 ET — so by Monday 21:00 HK (09:00 ET), the elapsed time is Fri-00:00-ET → Mon-09:00-ET = **3 full days + 9h = 81h**, not the naively-expected ~65h. Add the cron's own ~4h buffer before the next bar is reliably posted, and 85h is the real number.
+
+### Fix
+
+Iteratively raised `--stale-after-hours` in both the live LaunchAgent plist and the repo template (`scripts/launchd/com.alphasmart.rebalance.plist`) until it actually passed against the live measurement: **50 → 72 (still failed, 85.2h > 72h) → 96 (passed)**. 96h gives ~11h of slack above the worst-case Monday measurement.
+
+```xml
+<string>--stale-after-hours</string>
+<string>96</string>
+```
+
+Verified via `launchctl kickstart` against the live broker; `health-check --check-broker` returned exit 0 after the bump.
+
+### Rule
+
+**When sizing a staleness/age threshold against a data source with its own dating convention, measure the real worst case — don't compute it from the convention you assume the source uses.** The naive calendar math (Friday evening close → Monday evening check ≈ 65h) was wrong by 20h because yfinance's bars are dated at session-start midnight, not session-end close. The fix-iterate-measure loop (50 → 72 → 96) was the correct response to that mismatch: don't guess a second time once the first guess is falsified by the actual logged age — let the live measurement set the number. This is the same family of bug as lesson #55 (calendar vs trading days) and is now itself the proximate cause of lesson #58 (A11) below — a lenient threshold fixed for one purpose silently broke an unrelated consumer of the same flag.
+
+---
+
+## 58. A11 — Decoupling the Poller's `skip_if_fresh` Cutoff from the Preflight `data_freshness` Threshold (A10 Side Effect)
+
+**Incident (2026-06-16 through 2026-06-18, three consecutive cron days):** the live SQLite DB showed 12 of 17 universe symbols (AAPL, AMD, AMZN, AVGO, LLY, MA, MSFT, NVDA, NVO, SPY, TSLA, V) frozen at their **2026-06-16** close for three straight days, despite each day's launchd log showing a clean `Fetching stock OHLCV: <symbol>` → `Fetched 5 bars for <symbol>` pair for every one of them — no exception, no error line, nothing that looked like a failure.
+
+**Root cause — confirmed by direct DB inspection, not by reading the code in isolation:** `runner_main.py`'s single `--stale-after-hours` CLI flag fed **two unrelated consumers**:
+
+1. `orchestrate_rebalance`'s preflight `data_freshness` gate — correctly wants to be lenient (96h, per lesson #57/A10) so it tolerates weekends without false-alarming.
+2. `LiveDataPoller.poll()`'s `skip_if_fresh` cutoff — decides whether to bother re-fetching a symbol's bar *today at all*. This needs to be tight (roughly one cron cycle) so the poller actually refreshes daily.
+
+A10's bump of the shared flag (50h → 96h) fixed consumer #1 and silently broke consumer #2: once a symbol's bar landed within 96h of "now," the poller's `poll_symbol_fresh_skip` branch fired and the fetch step for that symbol was **skipped entirely** — for up to four consecutive cron days. The "Fetched 5 bars" lines in the log belonged to the *other* 5 symbols (ASML, GOOG, META, NOW, QQQ) whose existing bar happened to have aged out of the 96h window on those particular days; the 12 stuck symbols simply never reached the fetch call. Confirmed directly: querying `alphasmart_dev.db` showed `AAPL`'s latest row pinned at `2026-06-16 00:00:00` through three subsequent cron runs, and the shadow-log JSONL for Fri 2026-06-19 (`reports/paper_trade/20260619/equity_xsec_momentum_B.jsonl`) shows explicit `poll_symbol_fresh_skip` events for exactly those 12 symbols.
+
+**Secondary finding while debugging this:** the launchd stdout/stderr log (`logs/launchd_rebalance.log`) was missing an entry for Fri 2026-06-19 entirely, which looked like a repeat of the lesson #51 silent-cron-failure pattern. The shadow log (`reports/paper_trade/<date>/<channel>.jsonl`) proved the cron *did* fire correctly at 21:01 HK that day — the stdout capture file is not a reliable signal on its own. **Always cross-check the shadow log before escalating a "missed cron" alarm from the stdout log alone.**
+
+### A11 fix
+
+Split the single flag into two independently-configurable ones in `runner_main.py`:
+
+```python
+p_reb.add_argument("--stale-after-hours", type=float, default=36.0,
+                   help="Pre-flight data-freshness threshold in hours.")
+...
+p_reb.add_argument("--poll-fresh-hours", type=float, default=20.0,
+                   help="LiveDataPoller's own skip_if_fresh cutoff — "
+                        "deliberately separate from --stale-after-hours.")
+```
+
+`cmd_rebalance` and `cmd_fetch` now pass `args.poll_fresh_hours` (not `args.stale_after_hours`) into `LiveDataPoller.poll(stale_after_hours=...)`. The preflight call inside `orchestrate_rebalance` is untouched — it still receives `args.stale_after_hours` (96h). Default for the new flag is 20h: tight enough to force a real re-fetch on every cron day (even after a Mon-after-weekend gap, the prior Friday bar is well past 20h old), loose enough to skip a redundant same-day re-run (e.g. a manual `launchctl kickstart` retry minutes later). The live plist now passes `--poll-fresh-hours 20` explicitly, alongside the existing `--stale-after-hours 96`.
+
+Also improved the operator-facing WARN message to list which symbols failed (`Errors: N ([symbols])`) instead of just a bare count — the bare "Errors: 12" with no names was part of why this took direct DB inspection to root-cause instead of a single log read.
+
+### Tests (+3, full suite 358 passing — 2 pre-existing unrelated failures in test_gate1.py/test_metrics.py untouched)
+
+| Test | Verifies |
+|---|---|
+| `test_parser_decouples_poll_fresh_hours_from_stale_after_hours` | Both flags independently settable via argparse |
+| `test_parser_poll_fresh_hours_default_is_tighter_than_stale_after_hours` | Defaults alone can't reintroduce the bug (20 < 36) |
+| `test_cmd_rebalance_passes_poll_fresh_hours_not_stale_after_hours_to_poller` | Regression test: stubs `LiveDataPoller`, asserts `cmd_rebalance` calls `.poll(stale_after_hours=20.0, ...)` — never 96.0 — even when both flags are explicitly set to their production values |
+
+### Live verification
+
+Ran `runner_main fetch --poll-fresh-hours 20` against the real (stuck) production DB: all 17 symbols were actually re-fetched (no `fresh_skip` events), `symbols_error=0`, `total_bars_inserted=22`. Re-queried the DB directly afterward — all 12 previously-frozen symbols advanced from 2026-06-16 to 2026-06-18 (yfinance's current latest available close at the time of the test).
+
+### Rule
+
+**A threshold shared across two semantically different consumers will eventually be tuned correctly for one and incorrectly for the other — give each consumer its own knob, even if they happen to start with the same default value.** This is the same root-cause shape as lesson #45 (one yfinance convention silently violating an assumption baked in elsewhere) and lesson #55 (one cadence unit reused for a different cadence concept). **Adjacent rule: a clean "Fetched N bars" success log does not mean the data advanced** — it only means the HTTP call succeeded. Always verify the *write* (the DB row, the state file), not just the *call*, when an operational anomaly spans multiple days without a single visible error.
+
+**Distinguish transient infrastructure failures from real bugs at the preflight layer.** Network drops, connection resets, and protocol errors are statistically inevitable on any REST API; preflight should rescue them with bounded retry. But auth errors, missing credentials, type errors, and 4xx responses are deterministic — they should fail immediately and loudly so the operator can fix the root cause. The classifier (`_is_transient_broker_error`) is the contract; whitelist-only matching is the safe default. **Adjacent rule:** **retry once, never more.** Multi-retry strategies hide failure modes; one retry rescues the common case without masking the rare-but-real degraded-broker scenario.

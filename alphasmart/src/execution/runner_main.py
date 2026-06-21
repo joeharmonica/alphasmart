@@ -411,13 +411,14 @@ def cmd_rebalance(args: argparse.Namespace) -> int:
             universe=full_universe,
             timeframe="1d",
             lookback_period=args.fetch_lookback,
-            stale_after_hours=args.stale_after_hours,
+            stale_after_hours=args.poll_fresh_hours,
             skip_if_fresh=not args.force_fetch,
         )
         if not poll_result.coverage_ok:
             errors = poll_result.errors()
             print(f"WARN: live data poll did not achieve full coverage. "
-                  f"Errors: {len(errors)}. Continuing — rebalance pre-flight will validate.",
+                  f"Errors: {len(errors)} ({[r.symbol for r in errors]}). "
+                  f"Continuing — rebalance pre-flight will validate.",
                   file=sys.stderr)
 
     closes = load_closes(db_url=db_url, universe=spec.universe,
@@ -458,7 +459,7 @@ def cmd_fetch(args: argparse.Namespace) -> int:
         universe=full_universe,
         timeframe="1d",
         lookback_period=args.lookback,
-        stale_after_hours=args.stale_after_hours,
+        stale_after_hours=args.poll_fresh_hours,
         skip_if_fresh=not args.force,
     )
     print(json.dumps({
@@ -653,8 +654,19 @@ def build_parser() -> argparse.ArgumentParser:
                        help="Run a LiveDataPoller fetch before rebalancing.")
     p_reb.add_argument("--fetch-lookback", default="5d",
                        help="yfinance period string for the fetch (default 5d).")
+    p_reb.add_argument("--poll-fresh-hours", type=float, default=20.0,
+                       help=("A11 (lessons.md #58): the LiveDataPoller's own "
+                             "skip_if_fresh cutoff — deliberately separate from "
+                             "--stale-after-hours. That flag governs the lenient "
+                             "preflight data_freshness gate (96h, to survive "
+                             "weekends without false-alarming); reusing it here "
+                             "would let the poller skip re-fetching a symbol for "
+                             "up to 4 days once a bar lands within that window, "
+                             "silently freezing its data. 20h forces a real "
+                             "re-fetch every cron day while still skipping a "
+                             "same-day re-run (e.g. a manual kickstart retry)."))
     p_reb.add_argument("--force-fetch", action="store_true",
-                       help="Fetch even if DB bars are within stale_after_hours.")
+                       help="Fetch even if DB bars are within poll_fresh_hours.")
     p_reb.add_argument("--verbose", action="store_true",
                        help="Tee log events to stdout.")
     p_reb.add_argument("--min-trading-days", type=int, default=DEFAULT_MIN_TRADING_DAYS,
@@ -673,7 +685,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_fe = sub.add_parser("fetch", help="Standalone live-data fetch (populate DB).")
     p_fe.add_argument("--lookback", default="5d",
                       help="yfinance period string (default 5d).")
-    p_fe.add_argument("--stale-after-hours", type=float, default=36.0)
+    p_fe.add_argument("--poll-fresh-hours", type=float, default=20.0,
+                      help="LiveDataPoller skip_if_fresh cutoff (see A11, lessons.md #58).")
     p_fe.add_argument("--force", action="store_true",
                       help="Fetch even if DB bars are fresh.")
     p_fe.add_argument("--db-url", default=None)

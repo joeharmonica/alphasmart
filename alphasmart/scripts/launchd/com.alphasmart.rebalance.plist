@@ -16,6 +16,8 @@
         <string>--fetch-before-rebalance</string>
         <string>--stale-after-hours</string>
         <string>96</string>
+        <string>--poll-fresh-hours</string>
+        <string>20</string>
     </array>
 
     <key>WorkingDirectory</key>
