@@ -1373,3 +1373,54 @@ The cadence gate (#55/A9) has a top-K-membership escape hatch: `is_rotation = (p
 ### Rule
 
 **Universe membership is a rule, not a pick; and any backtest that silently changes its window when you add a late-IPO ticker is comparing two different experiments.** Always clip every variant to the common date range before comparing metrics — `dropna()` across a wider universe quietly does this *for one arm only*, which inverts conclusions (here, CRWD went from "worst add" to "best contributor" once the window was matched). This is the same family as lesson #47 (period-dependent Sharpe) and #54 (the cadence study's slippage-window sensitivity).
+
+---
+
+## 60. A `--mock`/Shadow Dry-Run Silently Corrupted the Production State File
+
+**Incident (2026-06-27, self-inflicted while previewing the #59 universe expansion):** ran `runner_main rebalance --mode shadow --mock` to preview the new 21-symbol basket without trading. The dry-run **overwrote the live production state file** (`reports/paper_trade/state/equity_xsec_momentum_B.json`) with mock data: `portfolio_value=100000` (the mock broker's default), the new basket (MU/AMD/ASML/PANW/CRWD), and a fresh `last_rebalance_utc` anchor of "now" — clobbering the real anchor (2026-06-21, basket AMD/ASML/QQQ/AVGO/NVDA, pv $106,774). A corrupt entry was also appended to `.history.jsonl`.
+
+**Root cause:** `orchestrate_rebalance` calls `state.write()` unconditionally once the equivalence gate passes — it does not distinguish a real paper run from a mock/shadow diagnostic. `cmd_rebalance` invoked it with the **default** (production) state root regardless of `--mock`/`--mode`. Shadow mode compounds the danger because it *bypasses the cadence gate* (it always "runs"), so a shadow run also advances the anchor.
+
+**Why this is dangerous, not cosmetic:** had it gone unnoticed, the next real cron would have read `prev_state = {MU,AMD,ASML,PANW,CRWD}`, computed the same set as its target (21-universe top-5), and concluded `is_rotation = (prev_held == target_set) = False` → **the universe-expansion rotation would have been silently cancelled**, because the state lied that it had already happened. Separately, the reconciler would have compared the real broker (AMD/ASML/QQQ/AVGO/NVDA) against the corrupt expected state and seen ~100% drift → a likely false halt.
+
+### Recovery
+
+The real broker (queried directly: AMD/QQQ/ASML/NVDA/AVGO, equity $98,887) and `.history.jsonl` were the ground truth — `.history.jsonl`'s second-to-last line was the intact 2026-06-21 record. Restored `.json` from that line, stripped the corrupt trailing line from history, backed up both corrupt files to `/tmp`. Verified the restored anchor (6/21) and basket match the live broker.
+
+### Fix (guard)
+
+`cmd_rebalance` now redirects state to a throwaway diagnostic root whenever `args.mock or args.mode == "shadow"`:
+
+```python
+state_root_override: Optional[Path] = None
+if args.mock or args.mode == "shadow":
+    state_root_override = (Path(__file__).resolve().parents[2]
+                           / "reports" / "paper_trade" / "state_diagnostic")
+    print("NOTE: mock/shadow run — state writes redirected ...", file=sys.stderr)
+```
+
+Only a real paper-mode run touches the production state root. Tests (+4): three parametrized cases (`paper --mock`, `shadow --mock`, `shadow`) assert the diagnostic root is passed; one inverse case asserts a real `paper` run passes `state_root=None` (production). Full suite 362 passing.
+
+### Rule
+
+**A diagnostic/dry-run mode must be incapable of mutating production state — enforce it structurally, not by operator discipline.** The mistake was assuming "shadow/mock = read-only"; in fact the shared `orchestrate_rebalance` write path made them write-capable against the live file. The guard moves the safety from "remember not to point mock at prod" to "mock physically cannot reach prod." **Adjacent rule: the broker and the append-only history are the source of truth; the single-file state is a cache that can be rebuilt from them.** That property is exactly what made recovery a 30-second restore instead of a reconstruction.
+
+---
+
+## 61. Low-Frequency Research Poll — Keeping Out-of-Universe Symbols Fresh Without Touching the Trade Pipeline
+
+**Motivation:** lesson #58 established that the daily `LiveDataPoller` only refreshes the live trade universe, so research-only symbols (the leveraged-ETF DCA set: QLD/TQQQ/UPRO) go stale by design — they were 6 weeks behind (last bar 2026-05-15) by the time anyone looked. The fix is *not* to add them to the trade universe (they aren't traded) but to give the research data its own cadence.
+
+### Design
+
+A dedicated weekly LaunchAgent (`com.alphasmart.etf_research_poll`, Saturdays 22:00 local) runs `scripts/etf_research_poll.sh`, which loops the research tickers through `main.py fetch <SYM> --period 10y --timeframe 1d` (idempotent upsert). Deliberately decoupled from the trade pipeline:
+- **Isolation:** it `exit 0`s even on per-symbol fetch failure — a research-data hiccup must never block or alarm the live rebalance / health-check.
+- **Cadence:** weekly is sufficient for a DCA-research backtest that's re-run on demand, not daily; it also keeps the daily trade poll lean (no extra symbols on the critical path).
+- **Schedule placement:** Saturday 22:00 is well clear of the weekday 21:00 rebalance and the 09:00/22:00 health-checks, after the trading week has fully closed.
+
+Live-verified via `launchctl kickstart`: QLD/TQQQ/UPRO advanced from 2026-05-15 to 2026-06-26 (28 new bars each).
+
+### Rule
+
+**Not-on-the-critical-path data deserves its own cadence and its own failure domain.** Bolting research symbols onto the trade poll would either bloat the latency-sensitive path or (per #58) entangle their freshness logic with the trade staleness thresholds. A separate, lower-frequency, fail-open job keeps the two concerns independent — the trade pipeline stays lean and the research data stays current enough, with neither able to break the other.

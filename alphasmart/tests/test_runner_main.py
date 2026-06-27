@@ -520,3 +520,96 @@ def test_cmd_rebalance_passes_poll_fresh_hours_not_stale_after_hours_to_poller(
         f"poller got {captured.get('stale_after_hours')}h — expected the "
         f"dedicated poll_fresh_hours (20h), not stale_after_hours (96h)"
     )
+
+
+# ---------------------------------------------------------------------------
+# Lesson #60 — mock/shadow runs must NOT write to the production state file.
+# orchestrate_rebalance.state.write() runs unconditionally once equivalence
+# passes; a `--mock` dry-run (synthetic pv=100000) once clobbered the live
+# cadence anchor + reconciler baseline. cmd_rebalance must redirect state to
+# a diagnostic root whenever args.mock or args.mode == "shadow".
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("argv_extra", [
+    ["--mode", "paper", "--mock"],
+    ["--mode", "shadow", "--mock"],
+    ["--mode", "shadow"],
+])
+def test_cmd_rebalance_mock_or_shadow_never_writes_production_state(
+    tmp_root, monkeypatch, argv_extra,
+):
+    monkeypatch.setattr(
+        "src.execution.shadow_log.ShadowLog._default_root",
+        staticmethod(lambda: tmp_root / "logs"),
+    )
+
+    captured = {}
+
+    def _fake_orchestrate(*a, **kw):
+        captured["state_root"] = kw.get("state_root")
+        from src.execution.runner_main import OrchestrationResult
+        return OrchestrationResult(
+            timestamp_utc="2026-06-27T00:00:00Z",
+            channel="equity_xsec_momentum_B", mode=kw.get("mode", "?"),
+            pre_flight_ok=True, equivalence_check_passed=True,
+        )
+
+    # Give load_closes something non-empty so we reach orchestrate.
+    monkeypatch.setattr(
+        "src.execution.runner_main.load_closes",
+        lambda **kw: pd.DataFrame({"AMD": [1.0, 2.0]}),
+    )
+    monkeypatch.setattr(
+        "src.execution.runner_main.orchestrate_rebalance", _fake_orchestrate,
+    )
+
+    parser = build_parser()
+    args = parser.parse_args(
+        ["rebalance", *argv_extra, "--db-url", f"sqlite:///{tmp_root}/x.db"]
+    )
+    cmd_rebalance(args)
+
+    sr = captured["state_root"]
+    assert sr is not None, "mock/shadow must pass an explicit diagnostic state_root"
+    assert "state_diagnostic" in str(sr), (
+        f"state_root {sr} should be the diagnostic root, never production"
+    )
+
+
+def test_cmd_rebalance_real_paper_uses_production_state(tmp_root, monkeypatch):
+    """The inverse: a real paper-mode run must NOT redirect (state_root=None)."""
+    monkeypatch.setattr(
+        "src.execution.shadow_log.ShadowLog._default_root",
+        staticmethod(lambda: tmp_root / "logs"),
+    )
+    captured = {}
+
+    def _fake_orchestrate(*a, **kw):
+        captured["state_root"] = kw.get("state_root", "MISSING")
+        from src.execution.runner_main import OrchestrationResult
+        return OrchestrationResult(
+            timestamp_utc="2026-06-27T00:00:00Z",
+            channel="equity_xsec_momentum_B", mode="paper",
+            pre_flight_ok=True, equivalence_check_passed=True,
+        )
+
+    monkeypatch.setattr(
+        "src.execution.runner_main.load_closes",
+        lambda **kw: pd.DataFrame({"AMD": [1.0, 2.0]}),
+    )
+    monkeypatch.setattr(
+        "src.execution.runner_main.orchestrate_rebalance", _fake_orchestrate,
+    )
+    # Avoid building a real broker (needs creds): stub it.
+    monkeypatch.setattr(
+        "src.execution.runner_main._build_broker", lambda *a, **kw: object(),
+    )
+
+    parser = build_parser()
+    args = parser.parse_args(
+        ["rebalance", "--mode", "paper", "--db-url", f"sqlite:///{tmp_root}/x.db"]
+    )
+    cmd_rebalance(args)
+    assert captured["state_root"] is None, (
+        "real paper run must use the production state root (no override)"
+    )

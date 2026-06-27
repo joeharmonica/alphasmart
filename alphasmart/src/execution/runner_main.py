@@ -440,9 +440,28 @@ def cmd_rebalance(args: argparse.Namespace) -> int:
     if closes.empty:
         print("ERROR: no closes loaded from DB.", file=sys.stderr)
         return 1
+
+    # Safety guard (lessons.md #60): a mock-broker or shadow-mode run must
+    # NEVER write to the production state file. orchestrate_rebalance calls
+    # state.write() unconditionally once the equivalence gate passes — so a
+    # `--mock` dry-run (synthetic pv=100000, fake fills) or a `--mode shadow`
+    # diagnostic (which bypasses the cadence gate and always "runs") would
+    # otherwise clobber the live cadence anchor and the reconciler baseline.
+    # Only a real paper-mode run touches the production state root.
+    state_root_override: Optional[Path] = None
+    if args.mock or args.mode == "shadow":
+        state_root_override = (
+            Path(__file__).resolve().parents[2]
+            / "reports" / "paper_trade" / "state_diagnostic"
+        )
+        print(f"NOTE: mock/shadow run — state writes redirected to "
+              f"{state_root_override} (production state untouched).",
+              file=sys.stderr)
+
     result = orchestrate_rebalance(
         spec=spec, broker=broker, closes=closes, mode=args.mode,
         rebalance_kind=args.kind, log=log,
+        state_root=state_root_override,
         stale_after_hours=args.stale_after_hours,
         min_trading_days=args.min_trading_days,
         force_rebalance=args.force_rebalance,

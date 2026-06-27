@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.alphasmart.etf_research_poll</string>
+
+    <!-- Low-frequency (weekly) refresh of leveraged-ETF research symbols
+         (QLD/TQQQ/UPRO). These are NOT in the live trade universe; this job
+         exists solely to keep the DCA-research data fresh. A failure here
+         must never affect the trade pipeline (see lessons.md #58/#61). -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>/Users/joepong/alphasmart/alphasmart/scripts/etf_research_poll.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>/Users/joepong/alphasmart/alphasmart</string>
+
+    <key>StandardOutPath</key>
+    <string>/Users/joepong/alphasmart/alphasmart/logs/etf_research_poll.launchd.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/joepong/alphasmart/alphasmart/logs/etf_research_poll.launchd.log</string>
+
+    <!-- Saturdays at 22:00 local time. Weekday 6 = Saturday in launchd.
+         After the trading week has fully closed; well clear of the
+         weekday 21:00 rebalance and the 09:00/22:00 health-checks. -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Weekday</key><integer>6</integer>
+        <key>Hour</key><integer>22</integer>
+        <key>Minute</key><integer>0</integer>
+    </dict>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/Users/joepong/alphasmart/alphasmart/venv/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+</dict>
+</plist>
