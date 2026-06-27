@@ -66,9 +66,23 @@ from src.execution.strategy_runner import (
 # Built-in strategy: equity xsec momentum + B (binary SPY 200d-MA) filter
 # ---------------------------------------------------------------------------
 
+# Universe membership rule: US-listed mega/large-cap names by market cap,
+# NOT hand-picked by current momentum (that would be reactive selection
+# bias). The cross-sectional momentum signal does the within-universe
+# selection; this list only defines the candidate pool.
+#
+# 2026-06-27 expansion (17 -> 21): added MU, PANW, CRWD, ANET — all
+# large-cap names that belonged in a market-cap-defined pool and were
+# simply missing. Backtest (run_xsec_add_ticker.py, matched-window to
+# control for CRWD's 2019 IPO): 21-set Sharpe 1.771 vs 1.712 baseline
+# (+0.059), CAGR +8.2pts, MaxDD +4.8pts (the cost: higher-beta semis/
+# cyber amplify drawdowns). MU and ANET also improve the full 2015-26
+# window standalone; PANW is momentum-neutral but included for rule
+# consistency. See reports/xsec_addticker_*.json and lessons.md #59.
 EQUITY_UNIVERSE = sorted([
-    "AAPL", "AMD", "AMZN", "ASML", "AVGO", "GOOG", "LLY", "MA", "META",
-    "MSFT", "NOW", "NVDA", "NVO", "QQQ", "SPY", "TSLA", "V",
+    "AAPL", "AMD", "AMZN", "ANET", "ASML", "AVGO", "CRWD", "GOOG", "LLY",
+    "MA", "META", "MSFT", "MU", "NOW", "NVDA", "NVO", "PANW", "QQQ",
+    "SPY", "TSLA", "V",
 ])
 
 

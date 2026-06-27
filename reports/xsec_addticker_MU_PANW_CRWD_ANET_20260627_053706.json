@@ -1,0 +1,719 @@
+{
+  "generated_utc": "2026-06-27T05:37:06.705911+00:00",
+  "strategy": "equity_xsec_momentum_B (paper-trade variant)",
+  "params": {
+    "lookback_days": 126,
+    "skip_days": 0,
+    "top_k": 5,
+    "rebal_days": 21,
+    "filter": "binary_200ma_filter on SPY"
+  },
+  "universes": {
+    "baseline": {
+      "name": "baseline",
+      "n_symbols": 17,
+      "symbols": [
+        "AAPL",
+        "AMD",
+        "AMZN",
+        "ASML",
+        "AVGO",
+        "GOOG",
+        "LLY",
+        "MA",
+        "META",
+        "MSFT",
+        "NOW",
+        "NVDA",
+        "NVO",
+        "QQQ",
+        "SPY",
+        "TSLA",
+        "V"
+      ],
+      "date_range": [
+        "2015-05-22",
+        "2026-06-24"
+      ],
+      "n_bars": 2787,
+      "unfiltered": {
+        "sharpe": 1.4035946395293726,
+        "cagr": 0.46290211778803947,
+        "max_drawdown": 0.38279306672351165,
+        "in_market_pct": 0.9547900968783638
+      },
+      "filtered_B": {
+        "sharpe": 1.881820270143001,
+        "cagr": 0.5545700900360646,
+        "max_drawdown": 0.23111637706088617,
+        "in_market_pct": 0.7832795120200933
+      },
+      "in_market_pct": 0.7832795120200933,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 798,
+          "pct_of_days": 0.28632938643702904
+        },
+        "AMD": {
+          "days_in_top_k": 1506,
+          "pct_of_days": 0.5403659849300323
+        },
+        "AMZN": {
+          "days_in_top_k": 567,
+          "pct_of_days": 0.20344456404736275
+        },
+        "ASML": {
+          "days_in_top_k": 855,
+          "pct_of_days": 0.3067814854682454
+        },
+        "AVGO": {
+          "days_in_top_k": 1401,
+          "pct_of_days": 0.5026910656620022
+        },
+        "GOOG": {
+          "days_in_top_k": 462,
+          "pct_of_days": 0.16576964477933262
+        },
+        "LLY": {
+          "days_in_top_k": 903,
+          "pct_of_days": 0.3240043057050592
+        },
+        "MA": {
+          "days_in_top_k": 651,
+          "pct_of_days": 0.23358449946178686
+        },
+        "META": {
+          "days_in_top_k": 861,
+          "pct_of_days": 0.30893433799784714
+        },
+        "MSFT": {
+          "days_in_top_k": 588,
+          "pct_of_days": 0.2109795479009688
+        },
+        "NOW": {
+          "days_in_top_k": 777,
+          "pct_of_days": 0.27879440258342303
+        },
+        "NVDA": {
+          "days_in_top_k": 1674,
+          "pct_of_days": 0.6006458557588805
+        },
+        "NVO": {
+          "days_in_top_k": 714,
+          "pct_of_days": 0.25618945102260493
+        },
+        "QQQ": {
+          "days_in_top_k": 15,
+          "pct_of_days": 0.005382131324004306
+        },
+        "SPY": {
+          "days_in_top_k": 42,
+          "pct_of_days": 0.015069967707212056
+        },
+        "TSLA": {
+          "days_in_top_k": 1134,
+          "pct_of_days": 0.4068891280947255
+        },
+        "V": {
+          "days_in_top_k": 357,
+          "pct_of_days": 0.12809472551130247
+        }
+      }
+    },
+    "+MU": {
+      "name": "+MU",
+      "n_symbols": 18,
+      "symbols": [
+        "AAPL",
+        "AMD",
+        "AMZN",
+        "ASML",
+        "AVGO",
+        "GOOG",
+        "LLY",
+        "MA",
+        "META",
+        "MSFT",
+        "MU",
+        "NOW",
+        "NVDA",
+        "NVO",
+        "QQQ",
+        "SPY",
+        "TSLA",
+        "V"
+      ],
+      "date_range": [
+        "2015-05-22",
+        "2026-06-24"
+      ],
+      "n_bars": 2787,
+      "unfiltered": {
+        "sharpe": 1.4711701882516177,
+        "cagr": 0.5147003747690819,
+        "max_drawdown": 0.3827930667235119,
+        "in_market_pct": 0.9547900968783638
+      },
+      "filtered_B": {
+        "sharpe": 1.9444837271125712,
+        "cagr": 0.6174934303332833,
+        "max_drawdown": 0.2742885003952794,
+        "in_market_pct": 0.7832795120200933
+      },
+      "in_market_pct": 0.7832795120200933,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 714,
+          "pct_of_days": 0.25618945102260493
+        },
+        "AMD": {
+          "days_in_top_k": 1380,
+          "pct_of_days": 0.4951560818083961
+        },
+        "AMZN": {
+          "days_in_top_k": 504,
+          "pct_of_days": 0.18083961248654468
+        },
+        "ASML": {
+          "days_in_top_k": 750,
+          "pct_of_days": 0.2691065662002153
+        },
+        "AVGO": {
+          "days_in_top_k": 1218,
+          "pct_of_days": 0.4370290635091496
+        },
+        "GOOG": {
+          "days_in_top_k": 399,
+          "pct_of_days": 0.14316469321851452
+        },
+        "LLY": {
+          "days_in_top_k": 882,
+          "pct_of_days": 0.31646932185145316
+        },
+        "MA": {
+          "days_in_top_k": 609,
+          "pct_of_days": 0.2185145317545748
+        },
+        "META": {
+          "days_in_top_k": 756,
+          "pct_of_days": 0.271259418729817
+        },
+        "MSFT": {
+          "days_in_top_k": 546,
+          "pct_of_days": 0.19590958019375673
+        },
+        "MU": {
+          "days_in_top_k": 1065,
+          "pct_of_days": 0.3821313240043057
+        },
+        "NOW": {
+          "days_in_top_k": 735,
+          "pct_of_days": 0.263724434876211
+        },
+        "NVDA": {
+          "days_in_top_k": 1653,
+          "pct_of_days": 0.5931108719052745
+        },
+        "NVO": {
+          "days_in_top_k": 630,
+          "pct_of_days": 0.22604951560818085
+        },
+        "QQQ": {
+          "days_in_top_k": 15,
+          "pct_of_days": 0.005382131324004306
+        },
+        "SPY": {
+          "days_in_top_k": 42,
+          "pct_of_days": 0.015069967707212056
+        },
+        "TSLA": {
+          "days_in_top_k": 1092,
+          "pct_of_days": 0.39181916038751347
+        },
+        "V": {
+          "days_in_top_k": 315,
+          "pct_of_days": 0.11302475780409042
+        }
+      }
+    },
+    "+PANW": {
+      "name": "+PANW",
+      "n_symbols": 18,
+      "symbols": [
+        "AAPL",
+        "AMD",
+        "AMZN",
+        "ASML",
+        "AVGO",
+        "GOOG",
+        "LLY",
+        "MA",
+        "META",
+        "MSFT",
+        "NOW",
+        "NVDA",
+        "NVO",
+        "PANW",
+        "QQQ",
+        "SPY",
+        "TSLA",
+        "V"
+      ],
+      "date_range": [
+        "2015-05-22",
+        "2026-06-24"
+      ],
+      "n_bars": 2787,
+      "unfiltered": {
+        "sharpe": 1.3984318259088793,
+        "cagr": 0.461561410228261,
+        "max_drawdown": 0.38279306672351165,
+        "in_market_pct": 0.9547900968783638
+      },
+      "filtered_B": {
+        "sharpe": 1.8614277085884967,
+        "cagr": 0.5469220513516633,
+        "max_drawdown": 0.2318409123098193,
+        "in_market_pct": 0.7832795120200933
+      },
+      "in_market_pct": 0.7832795120200933,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 756,
+          "pct_of_days": 0.271259418729817
+        },
+        "AMD": {
+          "days_in_top_k": 1422,
+          "pct_of_days": 0.5102260495156081
+        },
+        "AMZN": {
+          "days_in_top_k": 546,
+          "pct_of_days": 0.19590958019375673
+        },
+        "ASML": {
+          "days_in_top_k": 834,
+          "pct_of_days": 0.2992465016146394
+        },
+        "AVGO": {
+          "days_in_top_k": 1281,
+          "pct_of_days": 0.4596340150699677
+        },
+        "GOOG": {
+          "days_in_top_k": 441,
+          "pct_of_days": 0.15823466092572658
+        },
+        "LLY": {
+          "days_in_top_k": 840,
+          "pct_of_days": 0.3013993541442411
+        },
+        "MA": {
+          "days_in_top_k": 567,
+          "pct_of_days": 0.20344456404736275
+        },
+        "META": {
+          "days_in_top_k": 861,
+          "pct_of_days": 0.30893433799784714
+        },
+        "MSFT": {
+          "days_in_top_k": 483,
+          "pct_of_days": 0.17330462863293863
+        },
+        "NOW": {
+          "days_in_top_k": 756,
+          "pct_of_days": 0.271259418729817
+        },
+        "NVDA": {
+          "days_in_top_k": 1653,
+          "pct_of_days": 0.5931108719052745
+        },
+        "NVO": {
+          "days_in_top_k": 672,
+          "pct_of_days": 0.2411194833153929
+        },
+        "PANW": {
+          "days_in_top_k": 771,
+          "pct_of_days": 0.2766415500538213
+        },
+        "QQQ": {
+          "days_in_top_k": 15,
+          "pct_of_days": 0.005382131324004306
+        },
+        "SPY": {
+          "days_in_top_k": 21,
+          "pct_of_days": 0.007534983853606028
+        },
+        "TSLA": {
+          "days_in_top_k": 1092,
+          "pct_of_days": 0.39181916038751347
+        },
+        "V": {
+          "days_in_top_k": 294,
+          "pct_of_days": 0.1054897739504844
+        }
+      }
+    },
+    "+CRWD": {
+      "name": "+CRWD",
+      "n_symbols": 18,
+      "symbols": [
+        "AAPL",
+        "AMD",
+        "AMZN",
+        "ASML",
+        "AVGO",
+        "CRWD",
+        "GOOG",
+        "LLY",
+        "MA",
+        "META",
+        "MSFT",
+        "NOW",
+        "NVDA",
+        "NVO",
+        "QQQ",
+        "SPY",
+        "TSLA",
+        "V"
+      ],
+      "date_range": [
+        "2019-06-12",
+        "2026-06-24"
+      ],
+      "n_bars": 1767,
+      "unfiltered": {
+        "sharpe": 1.3989707899122756,
+        "cagr": 0.5044484741679569,
+        "max_drawdown": 0.35373425760587285,
+        "in_market_pct": 0.9286926994906621
+      },
+      "filtered_B": {
+        "sharpe": 1.7673213764118785,
+        "cagr": 0.5601750541098178,
+        "max_drawdown": 0.21421854522968475,
+        "in_market_pct": 0.7402376910016978
+      },
+      "in_market_pct": 0.7402376910016978,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 441,
+          "pct_of_days": 0.2495755517826825
+        },
+        "AMD": {
+          "days_in_top_k": 696,
+          "pct_of_days": 0.3938879456706282
+        },
+        "AMZN": {
+          "days_in_top_k": 189,
+          "pct_of_days": 0.10696095076400679
+        },
+        "ASML": {
+          "days_in_top_k": 570,
+          "pct_of_days": 0.3225806451612903
+        },
+        "AVGO": {
+          "days_in_top_k": 840,
+          "pct_of_days": 0.47538200339558573
+        },
+        "CRWD": {
+          "days_in_top_k": 654,
+          "pct_of_days": 0.3701188455008489
+        },
+        "GOOG": {
+          "days_in_top_k": 420,
+          "pct_of_days": 0.23769100169779286
+        },
+        "LLY": {
+          "days_in_top_k": 651,
+          "pct_of_days": 0.3684210526315789
+        },
+        "MA": {
+          "days_in_top_k": 273,
+          "pct_of_days": 0.15449915110356535
+        },
+        "META": {
+          "days_in_top_k": 525,
+          "pct_of_days": 0.29711375212224106
+        },
+        "MSFT": {
+          "days_in_top_k": 105,
+          "pct_of_days": 0.059422750424448216
+        },
+        "NOW": {
+          "days_in_top_k": 231,
+          "pct_of_days": 0.1307300509337861
+        },
+        "NVDA": {
+          "days_in_top_k": 1053,
+          "pct_of_days": 0.5959252971137521
+        },
+        "NVO": {
+          "days_in_top_k": 420,
+          "pct_of_days": 0.23769100169779286
+        },
+        "QQQ": {
+          "days_in_top_k": 3,
+          "pct_of_days": 0.001697792869269949
+        },
+        "SPY": {
+          "days_in_top_k": 21,
+          "pct_of_days": 0.011884550084889643
+        },
+        "TSLA": {
+          "days_in_top_k": 861,
+          "pct_of_days": 0.4872665534804754
+        },
+        "V": {
+          "days_in_top_k": 252,
+          "pct_of_days": 0.14261460101867574
+        }
+      }
+    },
+    "+ANET": {
+      "name": "+ANET",
+      "n_symbols": 18,
+      "symbols": [
+        "AAPL",
+        "AMD",
+        "AMZN",
+        "ANET",
+        "ASML",
+        "AVGO",
+        "GOOG",
+        "LLY",
+        "MA",
+        "META",
+        "MSFT",
+        "NOW",
+        "NVDA",
+        "NVO",
+        "QQQ",
+        "SPY",
+        "TSLA",
+        "V"
+      ],
+      "date_range": [
+        "2015-05-22",
+        "2026-06-24"
+      ],
+      "n_bars": 2787,
+      "unfiltered": {
+        "sharpe": 1.4474182969478595,
+        "cagr": 0.49376723485512586,
+        "max_drawdown": 0.38279306672351177,
+        "in_market_pct": 0.9547900968783638
+      },
+      "filtered_B": {
+        "sharpe": 1.9323371684939974,
+        "cagr": 0.5943450826816403,
+        "max_drawdown": 0.23538642839819413,
+        "in_market_pct": 0.7832795120200933
+      },
+      "in_market_pct": 0.7832795120200933,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 714,
+          "pct_of_days": 0.25618945102260493
+        },
+        "AMD": {
+          "days_in_top_k": 1443,
+          "pct_of_days": 0.5177610333692142
+        },
+        "AMZN": {
+          "days_in_top_k": 504,
+          "pct_of_days": 0.18083961248654468
+        },
+        "ANET": {
+          "days_in_top_k": 1191,
+          "pct_of_days": 0.42734122712594186
+        },
+        "ASML": {
+          "days_in_top_k": 750,
+          "pct_of_days": 0.2691065662002153
+        },
+        "AVGO": {
+          "days_in_top_k": 1218,
+          "pct_of_days": 0.4370290635091496
+        },
+        "GOOG": {
+          "days_in_top_k": 399,
+          "pct_of_days": 0.14316469321851452
+        },
+        "LLY": {
+          "days_in_top_k": 861,
+          "pct_of_days": 0.30893433799784714
+        },
+        "MA": {
+          "days_in_top_k": 525,
+          "pct_of_days": 0.1883745963401507
+        },
+        "META": {
+          "days_in_top_k": 777,
+          "pct_of_days": 0.27879440258342303
+        },
+        "MSFT": {
+          "days_in_top_k": 525,
+          "pct_of_days": 0.1883745963401507
+        },
+        "NOW": {
+          "days_in_top_k": 735,
+          "pct_of_days": 0.263724434876211
+        },
+        "NVDA": {
+          "days_in_top_k": 1674,
+          "pct_of_days": 0.6006458557588805
+        },
+        "NVO": {
+          "days_in_top_k": 588,
+          "pct_of_days": 0.2109795479009688
+        },
+        "QQQ": {
+          "days_in_top_k": 15,
+          "pct_of_days": 0.005382131324004306
+        },
+        "SPY": {
+          "days_in_top_k": 21,
+          "pct_of_days": 0.007534983853606028
+        },
+        "TSLA": {
+          "days_in_top_k": 1071,
+          "pct_of_days": 0.38428417653390745
+        },
+        "V": {
+          "days_in_top_k": 294,
+          "pct_of_days": 0.1054897739504844
+        }
+      }
+    },
+    "+MU+PANW+CRWD+ANET": {
+      "name": "+MU+PANW+CRWD+ANET",
+      "n_symbols": 21,
+      "symbols": [
+        "AAPL",
+        "AMD",
+        "AMZN",
+        "ANET",
+        "ASML",
+        "AVGO",
+        "CRWD",
+        "GOOG",
+        "LLY",
+        "MA",
+        "META",
+        "MSFT",
+        "MU",
+        "NOW",
+        "NVDA",
+        "NVO",
+        "PANW",
+        "QQQ",
+        "SPY",
+        "TSLA",
+        "V"
+      ],
+      "date_range": [
+        "2019-06-12",
+        "2026-06-24"
+      ],
+      "n_bars": 1767,
+      "unfiltered": {
+        "sharpe": 1.3629911545155848,
+        "cagr": 0.5169430482357644,
+        "max_drawdown": 0.3907016171111446,
+        "in_market_pct": 0.9286926994906621
+      },
+      "filtered_B": {
+        "sharpe": 1.7711185488846035,
+        "cagr": 0.604603130326161,
+        "max_drawdown": 0.264346352250462,
+        "in_market_pct": 0.7402376910016978
+      },
+      "in_market_pct": 0.7402376910016978,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 210,
+          "pct_of_days": 0.11884550084889643
+        },
+        "AMD": {
+          "days_in_top_k": 612,
+          "pct_of_days": 0.3463497453310696
+        },
+        "AMZN": {
+          "days_in_top_k": 168,
+          "pct_of_days": 0.09507640067911714
+        },
+        "ANET": {
+          "days_in_top_k": 507,
+          "pct_of_days": 0.2869269949066214
+        },
+        "ASML": {
+          "days_in_top_k": 549,
+          "pct_of_days": 0.31069609507640067
+        },
+        "AVGO": {
+          "days_in_top_k": 630,
+          "pct_of_days": 0.3565365025466893
+        },
+        "CRWD": {
+          "days_in_top_k": 651,
+          "pct_of_days": 0.3684210526315789
+        },
+        "GOOG": {
+          "days_in_top_k": 273,
+          "pct_of_days": 0.15449915110356535
+        },
+        "LLY": {
+          "days_in_top_k": 567,
+          "pct_of_days": 0.32088285229202035
+        },
+        "MA": {
+          "days_in_top_k": 105,
+          "pct_of_days": 0.059422750424448216
+        },
+        "META": {
+          "days_in_top_k": 399,
+          "pct_of_days": 0.22580645161290322
+        },
+        "MSFT": {
+          "days_in_top_k": 84,
+          "pct_of_days": 0.04753820033955857
+        },
+        "MU": {
+          "days_in_top_k": 486,
+          "pct_of_days": 0.27504244482173174
+        },
+        "NOW": {
+          "days_in_top_k": 168,
+          "pct_of_days": 0.09507640067911714
+        },
+        "NVDA": {
+          "days_in_top_k": 945,
+          "pct_of_days": 0.534804753820034
+        },
+        "NVO": {
+          "days_in_top_k": 357,
+          "pct_of_days": 0.20203735144312393
+        },
+        "PANW": {
+          "days_in_top_k": 423,
+          "pct_of_days": 0.23938879456706283
+        },
+        "QQQ": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0
+        },
+        "SPY": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0
+        },
+        "TSLA": {
+          "days_in_top_k": 819,
+          "pct_of_days": 0.4634974533106961
+        },
+        "V": {
+          "days_in_top_k": 252,
+          "pct_of_days": 0.14261460101867574
+        }
+      }
+    }
+  }
+}

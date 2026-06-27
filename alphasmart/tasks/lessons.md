@@ -1336,4 +1336,40 @@ Ran `runner_main fetch --poll-fresh-hours 20` against the real (stuck) productio
 
 **A threshold shared across two semantically different consumers will eventually be tuned correctly for one and incorrectly for the other — give each consumer its own knob, even if they happen to start with the same default value.** This is the same root-cause shape as lesson #45 (one yfinance convention silently violating an assumption baked in elsewhere) and lesson #55 (one cadence unit reused for a different cadence concept). **Adjacent rule: a clean "Fetched N bars" success log does not mean the data advanced** — it only means the HTTP call succeeded. Always verify the *write* (the DB row, the state file), not just the *call*, when an operational anomaly spans multiple days without a single visible error.
 
-**Distinguish transient infrastructure failures from real bugs at the preflight layer.** Network drops, connection resets, and protocol errors are statistically inevitable on any REST API; preflight should rescue them with bounded retry. But auth errors, missing credentials, type errors, and 4xx responses are deterministic — they should fail immediately and loudly so the operator can fix the root cause. The classifier (`_is_transient_broker_error`) is the contract; whitelist-only matching is the safe default. **Adjacent rule:** **retry once, never more.** Multi-retry strategies hide failure modes; one retry rescues the common case without masking the rare-but-real degraded-broker scenario.
+---
+
+## 59. Universe Expansion (17 → 21) — Market-Cap Rule, Matched-Window Backtest, and the Cross-Window Comparison Trap
+
+**Context:** a freshness audit of `alphasmart_dev.db` surfaced that the live universe (17 symbols) was missing several legitimate US large-caps (MU, PANW, CRWD, ANET). The question — "should I add tickers?" — is a universe-*membership* question, and the disciplined answer is a **rule**, not a momentum cherry-pick.
+
+### Principle: define the universe by an ex-ante rule, let the signal select within it
+
+The candidates were first surfaced by ranking their current 126-day momentum (MU +310%, PANW +62%, CRWD +46%, ANET +20%) — all would crack today's top-5. But **adding a name *because* it is up 310% right now is reactive selection bias**: you buy the leader after the move. The correct framing is market-cap: these are all large/mega-cap names that *belonged* in a market-cap-defined pool and were simply absent. Their current momentum is irrelevant to the membership decision; the cross-sectional signal does the within-universe selection. PANW is momentum-neutral in backtest and was included anyway, precisely to avoid cherry-picking — excluding it would reintroduce the bias.
+
+### The cross-window comparison trap (the key methodological lesson)
+
+`run_xsec_add_ticker.py`'s default output compares each candidate universe against the 2015-baseline — but it `dropna()`s to the common history, so any universe containing **CRWD (IPO 2019-06)** is silently backtested over a *different, shorter window* (2019–2026, 1767 bars) than the 2015-baseline (2787 bars). The naive table made `+CRWD` look like the **worst** add (ΔSharpe −0.114) and the combined 21-set look mediocre (−0.111).
+
+Re-running with **all universes clipped to the same 2019-06-12 start** reversed the verdict entirely:
+
+| Universe (matched 2019–26 window) | Sharpe | CAGR | MaxDD |
+|---|---|---|---|
+| baseline 17 | 1.712 | 0.522 | 0.216 |
+| +MU+PANW+ANET (no CRWD) | 1.688 | 0.555 | 0.260 |
+| +MU+PANW+CRWD+ANET (21) | **1.771** | 0.605 | 0.264 |
+
+CRWD's *marginal* contribution on a fair window is **+0.083 Sharpe** — the single strongest contributor, the exact opposite of the −0.114 the cross-window table implied. On the full 2015–26 window (valid for the non-CRWD names), MU (+0.063 Sharpe, +6.3pts CAGR) and ANET (+0.051, +4.0pts) both improve standalone; PANW is neutral.
+
+**Net for the 21-set:** +0.059 Sharpe, +8.2pts CAGR, **but +4.8pts worse MaxDD** — the consistent cost of adding higher-beta semis/cyber names is amplified drawdowns. Accepted as a deliberate Sharpe/CAGR-for-drawdown trade.
+
+### Implementation
+
+`EQUITY_UNIVERSE` in `runner_main.py` expanded 17 → 21 (added ANET, CRWD, MU, PANW), with an inline comment documenting the market-cap rule and the backtest provenance. Full 10y+ history fetched into the DB for all four. Shadow-mode dry-run confirmed the new top-5 selection: **MU, AMD, ASML, PANW, CRWD** (3 of 4 new names enter immediately). Tests: 358 passing (2 pre-existing unrelated failures untouched); no test hard-codes the universe size (it's counted dynamically), so the expansion needed no test changes.
+
+### Operational consequence — the membership-rotation override fires immediately
+
+The cadence gate (#55/A9) has a top-K-membership escape hatch: `is_rotation = (prev_held != target_set)` bypasses the monthly gate. Current live holdings (AMD/ASML/QQQ/AVGO/NVDA) differ from the new target (MU/AMD/ASML/PANW/CRWD), so **the very next cron executes the full rotation** — it does NOT wait for the July cadence mark. A universe change is therefore a *live-trading* event the moment it lands in the deployed code path, even mid-cadence. **Rule: treat any universe-membership edit as immediately deployable — it will trade on the next scheduled run via the rotation override, bypassing cadence. Stage/confirm deliberately rather than assuming the monthly gate will delay it.**
+
+### Rule
+
+**Universe membership is a rule, not a pick; and any backtest that silently changes its window when you add a late-IPO ticker is comparing two different experiments.** Always clip every variant to the common date range before comparing metrics — `dropna()` across a wider universe quietly does this *for one arm only*, which inverts conclusions (here, CRWD went from "worst add" to "best contributor" once the window was matched). This is the same family as lesson #47 (period-dependent Sharpe) and #54 (the cadence study's slippage-window sensitivity).
