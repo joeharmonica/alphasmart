@@ -30,23 +30,26 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **9 — Multi-universe diversification** | Crypto (9 pairs) + bonds (9 ETFs) + sector ETFs (11) | ✅ **2026-05-03 — crypto PORTFOLIO_READY, bonds/sectors killed at Stage 3** |
 | **9 — First uncorrelated pair** | Equity xsec mom + crypto xsec mom, monthly ρ=0.40, var-reduction 32% | ✅ **2026-05-03 — 2 of ≥3 needed (lesson #39)** |
 | **10 — Regime filter** | Asset > 200d-MA gate (SPY for equity, BTC for crypto) | ✅ **2026-05-03 — Sharpe +0.4 to +0.5, MaxDD halved, 2022 dodged (lesson #40)** |
-| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$100k, top-5 mega-cap basket; see snapshot below |
-| **Operational hardening** | A1-A5 reconciler false-positive halt closures + A3 health-check + cron→launchd migration | ✅ Merged 2026-05-17 → 2026-05-18 ([lessons.md #42-#43, #49-#52](tasks/lessons.md)) |
-| **Research: leveraged-ETF DCA** | 6 strategy variants × 5 tickers (SPY/UPRO/QQQ/QLD/TQQQ), 10y window | ✅ Merged 2026-05-17 ([lessons.md #44-#50](tasks/lessons.md), reports under `reports/leveraged_etf_dca*/`) |
+| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$98.9k, top-5 mega-cap basket; see snapshot below |
+| **Operational hardening** | A1-A11 reconciler/preflight/cadence fixes + health-check + cron→launchd + state-write guard | ✅ Ongoing 2026-05-17 → 2026-06-27 ([lessons.md #42-#43, #49-#61](tasks/lessons.md)) |
+| **Universe expansion (17 → 21)** | Market-cap rule: + MU, PANW, CRWD, ANET | ✅ 2026-06-27 ([lessons.md #59](tasks/lessons.md)) |
+| **Research: leveraged-ETF DCA** | 6 strategy variants × 5 tickers (SPY/UPRO/QQQ/QLD/TQQQ), 10y window + weekly research poll | ✅ Merged 2026-05-17 ([lessons.md #44-#50, #61](tasks/lessons.md), reports under `reports/leveraged_etf_dca*/`) |
 | 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |
 
-### Latest paper-trade snapshot (live broker, 2026-05-18 post-rebalance)
+### Latest paper-trade snapshot (live broker, 2026-06-27)
 
-| Symbol | Qty | Market value | Weight | Unrealized P/L |
-|---|---:|---:|---:|---:|
-| AVGO | 48.02 | $20,177.67 | 20.05% | −$102 (−0.5%) |
-| AMD | 47.07 | $20,163.31 | 20.04% | −$1,657 (−7.6%) |
-| NVDA | 89.10 | $20,128.18 | 20.00% | +$100 (+0.5%) |
-| GOOG | 50.11 | $20,112.75 | 19.99% | +$905 (+4.7%) |
-| ASML | 13.28 | $19,827.99 | 19.70% | +$781 (+4.1%) |
-| **Total equity** | | **$100,635.98** | 100% | |
+`equity_xsec_momentum_B` — **21-symbol** universe, top-5 equal-weight 126d momentum, SPY > 200d-MA regime gate. Rebalances on top-5 membership rotation (any day) or a monthly cadence floor (first weekday cron of a new month, ≥14 trading days since anchor).
 
-Last successful rebalance: **2026-05-18** (catch-up via launchd kickstart — QQQ → NVDA swap completing the universe-v2 target). Live broker now holds AMD/ASML/AVGO/GOOG/NVDA each ~20%. Scheduler was migrated from `cron` to `launchd` the same day (lessons.md #51) after three observed cron silent-failures in a week; current schedule fires reliably with `--stale-after-hours 50` to absorb the HK-21:00 = ET-09:00 pre-market timing gap.
+| Symbol | Qty | Market value | Weight |
+|---|---:|---:|---:|
+| AMD | 39.65 | $20,678.82 | 20.9% |
+| QQQ | 28.59 | $20,201.79 | 20.4% |
+| ASML | 11.16 | $20,027.50 | 20.3% |
+| NVDA | 101.36 | $19,514.26 | 19.7% |
+| AVGO | 51.91 | $18,949.72 | 19.2% |
+| **Total equity** | | **$98,886.77** | 100% |
+
+Last successful rebalance: **2026-06-21**. Since-inception (2026-05-05) return **−1.1%** vs SPY **+0.7%** — roughly flat over a 7.5-week chop period, within variance against the 10-year backtest (the 30-day rubric ~early July is the first checkpoint). **Pending:** the 2026-06-27 universe-v3 expansion means the next cron rotates into the new top-5 **MU/AMD/ASML/PANW/CRWD** via the membership-rotation override. Scheduler is launchd (migrated from cron 2026-05-18, lessons.md #51); rebalance runs `--stale-after-hours 96 --poll-fresh-hours 20` (two independent freshness thresholds, lessons.md #57/#58). Zero false-positive halts since 2026-05-18.
 
 ### Leveraged-ETF DCA research summary (2026-05-17)
 
@@ -121,7 +124,7 @@ python -m src.execution.runner_main health-check --check-broker
 - `state/halt.<channel>.json` — kill-switch; while present, rebalance refuses to run
 - `<YYYYMMDD>/<channel>.jsonl` — daily structured event logs (preflight, signals, fills, drift)
 
-**Strategy spec (built-in):** `equity_xsec_momentum_B` — 15-symbol mega-cap cross-sectional 6-month momentum, top-5 equal-weight, 21-day rebalance, gated by SPY > 200d-MA. Defined in `src/execution/runner_main.py::build_equity_spec`. See `tasks/paper_trade_design.md` for the full design, pre-flight checks, and 7-day shadow / 30-day paper pass rubric.
+**Strategy spec (built-in):** `equity_xsec_momentum_B` — 21-symbol mega-cap cross-sectional 6-month (126-trading-day) momentum, top-5 equal-weight, gated by SPY > 200d-MA. Rebalances on top-5 membership rotation (any day) or a monthly cadence floor (first weekday cron of a new month + ≥14 trading days since anchor; lessons.md #53/#55). Defined in `src/execution/runner_main.py::build_equity_spec`. See `tasks/paper_trade_design.md` for the full design, pre-flight checks, and 7-day shadow / 30-day paper pass rubric.
 
 **Scheduler — macOS launchd (canonical, since 2026-05-18):**
 
@@ -129,8 +132,9 @@ Two LaunchAgents under `~/Library/LaunchAgents/`. Templates committed at `script
 
 | LaunchAgent | Schedule | Purpose |
 |---|---|---|
-| `com.alphasmart.rebalance` | Weekdays 21:00 local | Paper-mode rebalance with `--fetch-before-rebalance --stale-after-hours 50` |
+| `com.alphasmart.rebalance` | Weekdays 21:00 local | Paper-mode rebalance with `--fetch-before-rebalance --stale-after-hours 96 --poll-fresh-hours 20` (two independent freshness thresholds, lessons.md #57/#58) |
 | `com.alphasmart.healthcheck` | Weekdays 09:00 + 22:00 local | Probe halt-file + state-age + broker reachability via `scripts/healthcheck_wrapper.sh`; nonzero exit → log + macOS notification |
+| `com.alphasmart.etf_research_poll` | Saturdays 22:00 local | Weekly refresh of out-of-universe leveraged-ETF research symbols (QLD/TQQQ/UPRO); fail-open, never affects the trade pipeline (lessons.md #61) |
 
 **Why launchd over cron on macOS:** macOS `cron` goes silent after sleep/wake events without re-reading the crontab on respawn (lessons.md #51). launchd survives sleep/wake and integrates with the unified log. The previous cron-based schedule was migrated 2026-05-18 after three observed silent-failure incidents in a week.
 
@@ -216,12 +220,18 @@ The dashboard auto-loads all symbols and strategies from the database. Select a 
 | V | Visa | Payments |
 | MA | Mastercard | Payments |
 | NVO | Novo Nordisk | Pharma |
+| MU | Micron | Semiconductors |
+| PANW | Palo Alto Networks | Cybersecurity |
+| ANET | Arista Networks | Networking |
+| LLY | Eli Lilly | Pharma |
+| AMD | AMD | Semiconductors |
 | SPY | S&P 500 ETF | Benchmark |
 | QQQ | Nasdaq 100 ETF | Benchmark |
+| QLD / TQQQ / UPRO | Leveraged ETFs | DCA research only (out-of-universe, weekly poll) |
 | BTC/USDT | Bitcoin | Crypto |
 | ETH/USDT | Ethereum | Crypto |
 
-All equity symbols have 5 years of daily data (1,256 bars). Weekly data is available for AAPL–GOOG. Crypto uses daily + 4h.
+The **live trade universe** (`equity_xsec_momentum_B`) is 21 symbols: AAPL, AMD, AMZN, ANET, ASML, AVGO, CRWD, GOOG, LLY, MA, META, MSFT, MU, NOW, NVDA, NVO, PANW, QQQ, SPY, TSLA, V (membership rule = US mega/large-cap; the cross-sectional signal picks the top-5 within it). Equity symbols carry 10+ years of daily data; leveraged-ETF research symbols are refreshed weekly out-of-band. Crypto uses daily + 4h.
 
 ---
 

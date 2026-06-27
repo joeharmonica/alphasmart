@@ -16,40 +16,58 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **4 — Dashboard** | React UI, Next.js, optimization queue, opt-params persistence | ✅ Complete |
 | **Step 1 Live Run** | Full data fetch, batch backtest, optimization, reports | ✅ 2026-04-07 |
 | **Steps 3–5** | Regime filter, V2 composites, intraday mini-batch | ✅ 2026-04-07 |
-| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$100k, top-5 mega-cap basket |
+| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$98.9k, top-5 mega-cap basket |
 | 6 — Live Deployment | Real capital, broker integration | 🔜 Planned |
-| **Operational hardening** | A1-A5 reconciler fixes + A3 health-check + launchd migration | ✅ Merged 2026-05-17 → 2026-05-18 ([lessons.md #42-#43, #49-#52](alphasmart/tasks/lessons.md)) |
-| **Research: leveraged-ETF DCA** | 10y DCA backtest, 6 strategy variants × 5 tickers | ✅ Merged 2026-05-17 ([lessons.md #44-#50](alphasmart/tasks/lessons.md), reports under `alphasmart/reports/leveraged_etf_dca*/`) |
+| **Operational hardening** | A1-A11 reconciler/preflight/cadence fixes + health-check + launchd migration + state-write guard | ✅ Ongoing 2026-05-17 → 2026-06-27 ([lessons.md #42-#43, #49-#61](alphasmart/tasks/lessons.md)) |
+| **Universe expansion (17 → 21)** | Market-cap rule: add MU, PANW, CRWD, ANET | ✅ 2026-06-27 ([lessons.md #59](alphasmart/tasks/lessons.md)) |
+| **Research: leveraged-ETF DCA** | 10y DCA backtest, 6 strategy variants × 5 tickers + weekly research poll | ✅ Merged 2026-05-17 ([lessons.md #44-#50, #61](alphasmart/tasks/lessons.md), reports under `alphasmart/reports/leveraged_etf_dca*/`) |
 
-> The current paper-trade run uses the equity leg only (`equity_xsec_momentum_B`): **17-symbol** mega-cap cross-sectional 6-month momentum, top-5 equal-weight, monthly rebalance, gated by SPY > 200d-MA. Universe v2 (2026-05-11) added AMD + LLY for a −2.3pp MaxDD / +0.7pp CAGR trade-off; see `alphasmart/tasks/strategies.md` for the universe-history audit trail and `alphasmart/tasks/paper_trade_design.md` for the full design and pass/fail rubric.
+> The current paper-trade run uses the equity leg only (`equity_xsec_momentum_B`): **21-symbol** mega-cap cross-sectional 6-month (126-trading-day) momentum, top-5 equal-weight, gated by SPY > 200d-MA. Rebalance fires on **top-5 membership rotation (any day) or a monthly cadence floor** (first weekday cron of a new month, ≥14 trading days since last rebalance) — see "Rebalance cadence" below. Universe history: v2 (2026-05-11) added AMD + LLY; v3 (2026-06-27) added MU/PANW/CRWD/ANET by market-cap rule (backtest: 21-set Sharpe 1.771 vs 1.712 baseline on matched window, +8.2pts CAGR, +4.8pts MaxDD). See `alphasmart/tasks/strategies.md` for the audit trail and `alphasmart/tasks/paper_trade_design.md` for the design + pass/fail rubric.
 
-### Latest paper-trade snapshot (live broker, 2026-05-18 post-rebalance)
+### Latest paper-trade snapshot (live broker, 2026-06-27)
 
-| Symbol | Qty | Market value | Weight | Unrealized P/L |
-|---|---:|---:|---:|---:|
-| AVGO | 48.02 | $20,177.67 | 20.05% | −$102 (−0.5%) |
-| AMD | 47.07 | $20,163.31 | 20.04% | −$1,657 (−7.6%) |
-| NVDA | 89.10 | $20,128.18 | 20.00% | +$100 (+0.5%) |
-| GOOG | 50.11 | $20,112.75 | 19.99% | +$905 (+4.7%) |
-| ASML | 13.28 | $19,827.99 | 19.70% | +$781 (+4.1%) |
-| **Total equity** | | **$100,635.98** | 100% | |
+| Symbol | Qty | Market value | Weight |
+|---|---:|---:|---:|
+| AMD | 39.65 | $20,678.82 | 20.9% |
+| QQQ | 28.59 | $20,201.79 | 20.4% |
+| ASML | 11.16 | $20,027.50 | 20.3% |
+| NVDA | 101.36 | $19,514.26 | 19.7% |
+| AVGO | 51.91 | $18,949.72 | 19.2% |
+| **Total equity** | | **$98,886.77** | 100% |
 
-Last successful rebalance: **2026-05-18** — caught up via manual `launchctl kickstart` of the new `com.alphasmart.rebalance` LaunchAgent. Completed the universe-v2 target by selling QQQ and buying NVDA (4 orders, all filled at market open). Scheduler migrated from cron → launchd the same day (lessons.md #51) after three observed silent-failures on cron over a week. The `--stale-after-hours 50` flag now absorbs the HK-21:00 = ET-09:00 pre-market timing gap.
+Last successful rebalance: **2026-06-21** (rotation into AVGO/NVDA). Since-inception (2026-05-05) return **−1.1%** vs SPY **+0.7%** — roughly flat over a 7.5-week chop period, well within variance against a 10-year backtest; the formal 30-day rubric (~early July) is the first real checkpoint. **Pending:** the 2026-06-27 universe expansion (v3) means the next cron rotates into the new top-5 **MU/AMD/ASML/PANW/CRWD** via the membership-rotation override (bypassing the monthly cadence floor).
 
-### Operational hardening journey (2026-05-11 → 2026-05-18, lessons #42–#52)
+### Rebalance cadence
 
-A one-week sprint closed every false-positive halt class observed in production paper trading, plus the macOS scheduler-reliability issue underneath them. Each fix surfaced the next:
+The cron runs **every weekday 21:00 HK** (09:00 ET) and recomputes the target top-5 on every run, but **only submits orders when a trigger fires**:
 
-| Day | Symptom | Root cause | Fix | Lesson |
+| Trigger | When | Frequency |
+|---|---|---|
+| Momentum rotation | top-5 membership changes | any day, immediately |
+| Monthly cadence mark | first weekday cron of a new month, ≥14 trading days since anchor | ~monthly floor |
+| First run / `--force-rebalance` | no prior state / manual override | as needed |
+
+Otherwise the run is `cadence_blocked` — a clean no-op (exit 0, no trade). Even when rebalancing, orders < 0.5% of portfolio are skipped (no-trade band). Auxiliary schedules: **health-check** twice daily (09:00 + 22:00 HK), **leveraged-ETF research poll** weekly (Sat 22:00). In practice the rotation trigger has driven ~weekly trading (6 rebalances in the first 7 weeks) — higher turnover than the backtest's monthly assumption, which is cost-neutral at Alpaca paper's ~zero slippage but a drag at real-money slippage (>10–15 bps; see lessons.md #54).
+
+### Operational hardening journey (2026-05-11 → 2026-06-27, lessons #42–#61)
+
+A multi-week sprint closing every false-positive halt/block class observed in production, plus the scheduler-reliability and data-freshness issues underneath them. Each fix surfaced the next:
+
+| Date | Symptom | Root cause | Fix | Lesson |
 |---|---|---|---|---|
-| 5-07 → 5-11 | cron silently halted 4 days | preflight `cash_buffer` check incompatible with 100%-allocated strategy | loosen `min_cash_buffer_pct` to −0.02; better future fix = structural cash buffer in strategy spec | [#42](alphasmart/tasks/lessons.md) |
-| 5-11 | every cross-asset swap pre-market wrote phantom-halt | reconciler didn't credit pending SELLs against phantom-broker | A1: new `pending_close` classification; A2: full closes bypass threshold + use exact broker qty | [#43](alphasmart/tasks/lessons.md) |
-| 5-13 → 5-18 | cron daemon went silent 3x in a week after sleep/wake | macOS cron is legacy; doesn't re-read crontab on respawn | A3: silent-halt alarm (health-check + osascript notifier); migrate scheduler cron → launchd | [#51](alphasmart/tasks/lessons.md) |
-| 5-18 21:50 | clean 4-order rebalance triggered halt | reconciler ran in pre-fill window; drift-branch didn't credit pending corrective orders | A4: new `pending_adjust` classification (mirror of A1 logic in the drift branch) | [#52](alphasmart/tasks/lessons.md) |
-| 5-18 22:09 | no-op rebalance against on-target basket still halted | reconciler's 1% qty threshold tighter than runner's $-based 2.5% no-trade band | A5: bump `DEFAULT_PER_SYMBOL_DRIFT_HALT_PCT` 0.01 → 0.03 with derivation comment | [#52](alphasmart/tasks/lessons.md) |
-| 5-18 22:11 | clean no-op no halt | (verification) | live-confirmed all fixes; LaunchAgents at exit 0 | — |
+| 5-07 → 5-11 | cron silently halted 4 days | preflight `cash_buffer` incompatible with 100%-allocated strategy | loosen `min_cash_buffer_pct` to −0.02 | [#42](alphasmart/tasks/lessons.md) |
+| 5-11 | every cross-asset swap pre-market wrote phantom-halt | reconciler didn't credit pending SELLs | A1 `pending_close` + A2 full-close exact qty | [#43](alphasmart/tasks/lessons.md) |
+| 5-13 → 5-18 | cron daemon went silent 3× in a week | macOS cron doesn't re-read crontab on respawn | A3 silent-halt alarm; migrate cron → launchd | [#51](alphasmart/tasks/lessons.md) |
+| 5-18 | clean rebalance / no-op still halted | drift-branch didn't credit pending corrective orders; 1% qty threshold tighter than runner's 2.5% band | A4 `pending_adjust`; A5 bump drift threshold 0.01 → 0.03 | [#52](alphasmart/tasks/lessons.md) |
+| 5-20 → 6-01 | backtest claimed monthly Sharpe; live recomputed daily | cadence mismatch (daily recompute vs `rebal=21d`) | A7 cadence gate (+ #54 cadence study confirming the trade-off) | [#53](alphasmart/tasks/lessons.md), [#54](alphasmart/tasks/lessons.md) |
+| 6-06 | cadence fired ~6 trading days early | A7 conflated calendar days with backtest bars | A9 calendar-month + 14-trading-day guard | [#55](alphasmart/tasks/lessons.md) |
+| 5-21 → 5-22 | back-to-back rebalances blocked on broker network drop | transient Alpaca REST failure at ET-09:00 market-open spike | A6 preflight retry-once on transient errors only | [#56](alphasmart/tasks/lessons.md) |
+| 6-08 | Monday health-check false `state_stale` | yfinance dates bars at midnight ET, not close → 85h real age | A10 `--stale-after-hours` 50 → 96 | [#57](alphasmart/tasks/lessons.md) |
+| 6-16 → 6-18 | 12/17 symbols frozen 3 days despite "Fetched N bars" | A10's 96h shared flag also gated the poller's skip-if-fresh | A11 dedicated `--poll-fresh-hours` (20h) | [#58](alphasmart/tasks/lessons.md) |
+| 6-27 | `--mock` dry-run overwrote production state file | `state.write()` ran unconditionally with production state root | guard: mock/shadow redirect to diagnostic state root | [#60](alphasmart/tasks/lessons.md) |
+| 6-27 | leveraged-ETF research symbols 6 weeks stale | out-of-universe → daily poller never fetched them | weekly fail-open `etf_research_poll` LaunchAgent | [#61](alphasmart/tasks/lessons.md) |
 
-**Net outcome:** the reconciler now correctly distinguishes four in-flight order classes (`pending_fill` / `pending_close` / `pending_adjust` / `ok-within-runner-skip-band`) from genuine drift / phantom / missing scenarios that *should* halt. Real failures (corporate actions, unauthorized trades, broker corruption) still halt because they exceed thresholds by design — the wider 3% drift threshold doesn't unguard against any failure mode the strategy itself wouldn't have caught.
+**Net outcome:** the reconciler distinguishes four in-flight order classes (`pending_fill` / `pending_close` / `pending_adjust` / `ok-within-skip-band`) from genuine drift / phantom / missing that *should* halt; the cadence gate is calendar-anchored and unit-correct; preflight survives transient broker blips and weekend/Monday data-age quirks; the daily poller and preflight freshness checks have independent thresholds; and mock/shadow diagnostics can no longer corrupt live state. Real failures (corporate actions, unauthorized trades, broker corruption) still halt by design. **Zero false-positive halts since 2026-05-18.**
 
 ---
 
@@ -92,7 +110,7 @@ cp .env.example .env
 #     ANTHROPIC_API_KEY=<optional, only needed for LLM copilot>
 chmod 600 .env
 
-# 4. Smoke-test connectivity + rebuild local OHLCV DB for the v2 universe (17 symbols).
+# 4. Smoke-test connectivity + rebuild local OHLCV DB for the universe (21 symbols).
 #    --lookback 10y populates enough history for re-running backtests; for operation alone,
 #    1y is sufficient (the strategy only needs the trailing 126 trading days).
 python -m src.execution.runner_main fetch --lookback 10y --force --verbose
@@ -139,7 +157,8 @@ tail -f alphasmart/logs/health-alerts.log          # populated only on failed he
 ```
 
 **Schedules** (defined in the plist `StartCalendarInterval` arrays):
-- `com.alphasmart.rebalance` → weekdays 21:00 local, runs `runner_main rebalance --mode paper --fetch-before-rebalance --stale-after-hours 50`
+- `com.alphasmart.rebalance` → weekdays 21:00 local, runs `runner_main rebalance --mode paper --fetch-before-rebalance --stale-after-hours 96 --poll-fresh-hours 20`
+- `com.alphasmart.etf_research_poll` → Saturdays 22:00 local, weekly refresh of out-of-universe leveraged-ETF research symbols (fail-open; never affects the trade pipeline)
 - `com.alphasmart.healthcheck` → weekdays 09:00 AND 22:00 local, runs `scripts/healthcheck_wrapper.sh` (which calls `runner_main health-check --check-broker` and fires a macOS notification on nonzero exit)
 
 **Why launchd over cron on macOS:** macOS `cron` is a legacy compat shim and goes silent after sleep/wake events without picking up its crontab on respawn (lessons.md #51). launchd survives sleep/wake, integrates with the unified log, and runs catch-up jobs if the Mac was off at the scheduled time (configurable via `StartCalendarIntervalRunAtLoadIfMissed`). To uninstall the LaunchAgents:
@@ -154,7 +173,7 @@ rm ~/Library/LaunchAgents/com.alphasmart.*.plist
 
 ```cron
 # Same schedule via cron — adjust paths to your clone.
-0 21 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode paper --fetch-before-rebalance --stale-after-hours 50 >> $HOME/alphasmart/alphasmart/logs/cron.log 2>&1
+0 21 * * 1-5 cd $HOME/alphasmart/alphasmart && $HOME/alphasmart/alphasmart/venv/bin/python -m src.execution.runner_main rebalance --mode paper --fetch-before-rebalance --stale-after-hours 96 --poll-fresh-hours 20 >> $HOME/alphasmart/alphasmart/logs/cron.log 2>&1
 0 9,22 * * 1-5 $HOME/alphasmart/alphasmart/scripts/healthcheck_wrapper.sh
 ```
 
