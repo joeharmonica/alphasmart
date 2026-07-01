@@ -1424,3 +1424,23 @@ Live-verified via `launchctl kickstart`: QLD/TQQQ/UPRO advanced from 2026-05-15 
 ### Rule
 
 **Not-on-the-critical-path data deserves its own cadence and its own failure domain.** Bolting research symbols onto the trade poll would either bloat the latency-sensitive path or (per #58) entangle their freshness logic with the trade staleness thresholds. A separate, lower-frequency, fail-open job keeps the two concerns independent — the trade pipeline stays lean and the research data stays current enough, with neither able to break the other.
+
+---
+
+## 62. Post-Expansion Momentum Checkpoint (2026-07-01) — Basket Confirmed, but a 2-Day Pop Proves Nothing
+
+**Checkpoint, not a conclusion.** After the #59 universe expansion (17→21) landed on 6/27 and the 6/29 cron rotated the live book into the new momentum top-5, a 7/01 momentum re-check confirms the state is coherent and gives a clean anchor for the 30-day rubric.
+
+### 2026-07-01 momentum ranking (21-symbol universe, 126-trading-day)
+
+Regime: **risk-on** (SPY $746.81 > 200d-MA $689.96). Top-5 (held): **MU +265.5%, AMD +158.3%, PANW +88.9%, ASML +79.5%, CRWD +61.9%.** First alternate ANET +25.6% — a wide gap below CRWD, so the basket is stable, not borderline. `rotation_needed = False`: the live book already equals the computed top-5. Full ranking committed at `reports/momentum_checks/momentum_check_20260701.json`.
+
+**Live result so far:** equity $105,430 (+5.4% since 5/05 inception, +5.2% since the 6/29 rotation), 4 of 5 names green (ASML +$5.1k, AMD +$3.4k lead; MU −$0.9k the only laggard).
+
+### The actual lesson: resist the post-change validation trap
+
+A +5.2% jump in the ~2 trading days immediately after a config change is **statistically meaningless** and must not be read as "the expansion works." Three of the four new names (MU/PANW/CRWD) entered the top-5 *because* they had the strongest trailing momentum — so a continued short-term pop is partly just momentum autocorrelation, not evidence the *rule* is sound. This is the same period-dependence trap as lesson #47 (a 2022-start DCA outscoring an earlier start on Sharpe) and #59's own cross-window CRWD inversion. The expansion's merit was already established ex-ante by the matched-window backtest (#59); the live pop neither adds to nor detracts from that. **The clean 30-day evaluation is anchored 2026-07-01 → checkpoint 2026-07-31; no verdict before then.**
+
+### Rule
+
+**A strong move right after you change something is the least trustworthy data you will see — it is where confirmation bias is strongest and the sample is smallest.** Record it as a checkpoint, tie the real evaluation to a pre-committed horizon, and let the ex-ante backtest (not the post-hoc pop) carry the decision. Momentum strategies are especially prone to this because the names you just added are by construction the recent winners.

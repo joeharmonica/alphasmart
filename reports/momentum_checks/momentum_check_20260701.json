@@ -1,0 +1,167 @@
+{
+  "as_of_date": "2026-07-01",
+  "universe_size": 21,
+  "signal": "126-trading-day cross-sectional momentum, top-5 equal-weight",
+  "regime": {
+    "spy_close": 746.81,
+    "spy_200d_ma": 689.96,
+    "risk_on": true
+  },
+  "top5": [
+    "MU",
+    "AMD",
+    "PANW",
+    "ASML",
+    "CRWD"
+  ],
+  "currently_held": [
+    "MU",
+    "AMD",
+    "ASML",
+    "PANW",
+    "CRWD"
+  ],
+  "rotation_needed": false,
+  "ranking": [
+    {
+      "symbol": "MU",
+      "mom_126d_pct": 265.49,
+      "rank": 1,
+      "in_top5": true,
+      "currently_held": true
+    },
+    {
+      "symbol": "AMD",
+      "mom_126d_pct": 158.26,
+      "rank": 2,
+      "in_top5": true,
+      "currently_held": true
+    },
+    {
+      "symbol": "PANW",
+      "mom_126d_pct": 88.89,
+      "rank": 3,
+      "in_top5": true,
+      "currently_held": true
+    },
+    {
+      "symbol": "ASML",
+      "mom_126d_pct": 79.46,
+      "rank": 4,
+      "in_top5": true,
+      "currently_held": true
+    },
+    {
+      "symbol": "CRWD",
+      "mom_126d_pct": 61.92,
+      "rank": 5,
+      "in_top5": true,
+      "currently_held": true
+    },
+    {
+      "symbol": "ANET",
+      "mom_126d_pct": 25.61,
+      "rank": 6,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "QQQ",
+      "mom_126d_pct": 17.76,
+      "rank": 7,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "GOOG",
+      "mom_126d_pct": 13.58,
+      "rank": 8,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "LLY",
+      "mom_126d_pct": 10.65,
+      "rank": 9,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "AAPL",
+      "mom_126d_pct": 7.35,
+      "rank": 10,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "AVGO",
+      "mom_126d_pct": 6.74,
+      "rank": 11,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "NVDA",
+      "mom_126d_pct": 4.25,
+      "rank": 12,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "AMZN",
+      "mom_126d_pct": 3.63,
+      "rank": 13,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "NVO",
+      "mom_126d_pct": -0.64,
+      "rank": 14,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "V",
+      "mom_126d_pct": -1.89,
+      "rank": 15,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "META",
+      "mom_126d_pct": -6.81,
+      "rank": 16,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "TSLA",
+      "mom_126d_pct": -7.09,
+      "rank": 17,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "MA",
+      "mom_126d_pct": -9.21,
+      "rank": 18,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "MSFT",
+      "mom_126d_pct": -21.36,
+      "rank": 19,
+      "in_top5": false,
+      "currently_held": false
+    },
+    {
+      "symbol": "NOW",
+      "mom_126d_pct": -32.76,
+      "rank": 20,
+      "in_top5": false,
+      "currently_held": false
+    }
+  ]
+}

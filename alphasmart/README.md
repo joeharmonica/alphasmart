@@ -36,20 +36,20 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **Research: leveraged-ETF DCA** | 6 strategy variants × 5 tickers (SPY/UPRO/QQQ/QLD/TQQQ), 10y window + weekly research poll | ✅ Merged 2026-05-17 ([lessons.md #44-#50, #61](tasks/lessons.md), reports under `reports/leveraged_etf_dca*/`) |
 | 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |
 
-### Latest paper-trade snapshot (live broker, 2026-06-27)
+### Latest paper-trade snapshot (live broker, 2026-07-01)
 
 `equity_xsec_momentum_B` — **21-symbol** universe, top-5 equal-weight 126d momentum, SPY > 200d-MA regime gate. Rebalances on top-5 membership rotation (any day) or a monthly cadence floor (first weekday cron of a new month, ≥14 trading days since anchor).
 
-| Symbol | Qty | Market value | Weight |
+| Symbol | Market value | Weight | Unrealized P/L |
 |---|---:|---:|---:|
-| AMD | 39.65 | $20,678.82 | 20.9% |
-| QQQ | 28.59 | $20,201.79 | 20.4% |
-| ASML | 11.16 | $20,027.50 | 20.3% |
-| NVDA | 101.36 | $19,514.26 | 19.7% |
-| AVGO | 51.91 | $18,949.72 | 19.2% |
-| **Total equity** | | **$98,886.77** | 100% |
+| PANW | $23,261 | 22.1% | +$2,718 |
+| CRWD | $22,214 | 21.1% | +$1,660 |
+| ASML | $21,101 | 20.0% | +$5,091 |
+| AMD | $20,989 | 19.9% | +$3,378 |
+| MU | $18,844 | 17.9% | −$915 |
+| **Total equity** | **$105,430** | 100% | **+$11,933** |
 
-Last successful rebalance: **2026-06-21**. Since-inception (2026-05-05) return **−1.1%** vs SPY **+0.7%** — roughly flat over a 7.5-week chop period, within variance against the 10-year backtest (the 30-day rubric ~early July is the first checkpoint). **Pending:** the 2026-06-27 universe-v3 expansion means the next cron rotates into the new top-5 **MU/AMD/ASML/PANW/CRWD** via the membership-rotation override. Scheduler is launchd (migrated from cron 2026-05-18, lessons.md #51); rebalance runs `--stale-after-hours 96 --poll-fresh-hours 20` (two independent freshness thresholds, lessons.md #57/#58). Zero false-positive halts since 2026-05-18.
+Last rebalance: **2026-06-29** — the v3 (21-symbol) expansion rotated into the new momentum top-5 **MU/AMD/ASML/PANW/CRWD**. A 2026-07-01 momentum re-check confirms the held basket *is* the current top-5 (`rotation_needed=False`, regime risk-on; ranking in `reports/momentum_checks/momentum_check_20260701.json`). Equity **+5.4% since inception (5/05) / +5.2% since the 6/29 rotation** — but a ~2-day post-change pop proves nothing (lessons.md #62); **clean 30-day rubric anchored 2026-07-01 → formal checkpoint 2026-07-31.** Scheduler is launchd (migrated from cron 2026-05-18, lessons.md #51); rebalance runs `--stale-after-hours 96 --poll-fresh-hours 20` (two independent freshness thresholds, lessons.md #57/#58). Zero false-positive halts since 2026-05-18.
 
 ### Leveraged-ETF DCA research summary (2026-05-17)
 
