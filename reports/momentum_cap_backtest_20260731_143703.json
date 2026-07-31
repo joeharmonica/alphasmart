@@ -1,0 +1,739 @@
+{
+  "generated_utc": "2026-07-31T14:37:03.042047+00:00",
+  "strategy": "equity_xsec_momentum_B (momentum-cap variant study)",
+  "params": {
+    "lookback_days": 126,
+    "skip_days": 0,
+    "top_k": 5,
+    "rebal_days": 21,
+    "match_start": "2019-06-12",
+    "filter": "binary_200ma_filter on SPY"
+  },
+  "universe": [
+    "AAPL",
+    "AMD",
+    "AMZN",
+    "ANET",
+    "ASML",
+    "AVGO",
+    "CRWD",
+    "GOOG",
+    "LLY",
+    "MA",
+    "META",
+    "MSFT",
+    "MU",
+    "NOW",
+    "NVDA",
+    "NVO",
+    "PANW",
+    "QQQ",
+    "SPY",
+    "TSLA",
+    "V"
+  ],
+  "variants": {
+    "uncapped_baseline": {
+      "cap_pct": null,
+      "metrics": {
+        "sharpe": 1.4589182125366553,
+        "cagr": 0.6302900209171578,
+        "max_drawdown": 0.3065288205421337,
+        "in_market_pct": 0.7440044617958729
+      },
+      "rebalances": 80,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 210,
+          "pct_of_days": 0.11712214166201897,
+          "days_excluded_by_cap": 0
+        },
+        "AMD": {
+          "days_in_top_k": 638,
+          "pct_of_days": 0.3558282208588957,
+          "days_excluded_by_cap": 0
+        },
+        "AMZN": {
+          "days_in_top_k": 168,
+          "pct_of_days": 0.09369771332961517,
+          "days_excluded_by_cap": 0
+        },
+        "ANET": {
+          "days_in_top_k": 512,
+          "pct_of_days": 0.28555493586168434,
+          "days_excluded_by_cap": 0
+        },
+        "ASML": {
+          "days_in_top_k": 575,
+          "pct_of_days": 0.32069157836029,
+          "days_excluded_by_cap": 0
+        },
+        "AVGO": {
+          "days_in_top_k": 630,
+          "pct_of_days": 0.3513664249860569,
+          "days_excluded_by_cap": 0
+        },
+        "CRWD": {
+          "days_in_top_k": 672,
+          "pct_of_days": 0.3747908533184607,
+          "days_excluded_by_cap": 0
+        },
+        "GOOG": {
+          "days_in_top_k": 273,
+          "pct_of_days": 0.15225878416062466,
+          "days_excluded_by_cap": 0
+        },
+        "LLY": {
+          "days_in_top_k": 567,
+          "pct_of_days": 0.3162297824874512,
+          "days_excluded_by_cap": 0
+        },
+        "MA": {
+          "days_in_top_k": 105,
+          "pct_of_days": 0.05856107083100948,
+          "days_excluded_by_cap": 0
+        },
+        "META": {
+          "days_in_top_k": 399,
+          "pct_of_days": 0.22253206915783602,
+          "days_excluded_by_cap": 0
+        },
+        "MSFT": {
+          "days_in_top_k": 84,
+          "pct_of_days": 0.046848856664807585,
+          "days_excluded_by_cap": 0
+        },
+        "MU": {
+          "days_in_top_k": 512,
+          "pct_of_days": 0.28555493586168434,
+          "days_excluded_by_cap": 0
+        },
+        "NOW": {
+          "days_in_top_k": 168,
+          "pct_of_days": 0.09369771332961517,
+          "days_excluded_by_cap": 0
+        },
+        "NVDA": {
+          "days_in_top_k": 945,
+          "pct_of_days": 0.5270496374790853,
+          "days_excluded_by_cap": 0
+        },
+        "NVO": {
+          "days_in_top_k": 357,
+          "pct_of_days": 0.19910764082543222,
+          "days_excluded_by_cap": 0
+        },
+        "PANW": {
+          "days_in_top_k": 449,
+          "pct_of_days": 0.25041829336307864,
+          "days_excluded_by_cap": 0
+        },
+        "QQQ": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0,
+          "days_excluded_by_cap": 0
+        },
+        "SPY": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0,
+          "days_excluded_by_cap": 0
+        },
+        "TSLA": {
+          "days_in_top_k": 819,
+          "pct_of_days": 0.456776352481874,
+          "days_excluded_by_cap": 0
+        },
+        "V": {
+          "days_in_top_k": 252,
+          "pct_of_days": 0.14054656999442275,
+          "days_excluded_by_cap": 0
+        }
+      }
+    },
+    "cap_75pct": {
+      "cap_pct": 75,
+      "metrics": {
+        "sharpe": 1.3102199041196687,
+        "cagr": 0.5064322877096319,
+        "max_drawdown": 0.2266150317359492,
+        "in_market_pct": 0.7440044617958729
+      },
+      "rebalances": 80,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 365,
+          "pct_of_days": 0.20356943669827104,
+          "days_excluded_by_cap": 1
+        },
+        "AMD": {
+          "days_in_top_k": 567,
+          "pct_of_days": 0.3162297824874512,
+          "days_excluded_by_cap": 9
+        },
+        "AMZN": {
+          "days_in_top_k": 231,
+          "pct_of_days": 0.12883435582822086,
+          "days_excluded_by_cap": 1
+        },
+        "ANET": {
+          "days_in_top_k": 743,
+          "pct_of_days": 0.4143892916899052,
+          "days_excluded_by_cap": 1
+        },
+        "ASML": {
+          "days_in_top_k": 554,
+          "pct_of_days": 0.3089793641940881,
+          "days_excluded_by_cap": 3
+        },
+        "AVGO": {
+          "days_in_top_k": 798,
+          "pct_of_days": 0.44506413831567204,
+          "days_excluded_by_cap": 2
+        },
+        "CRWD": {
+          "days_in_top_k": 525,
+          "pct_of_days": 0.2928053541550474,
+          "days_excluded_by_cap": 10
+        },
+        "GOOG": {
+          "days_in_top_k": 336,
+          "pct_of_days": 0.18739542665923034,
+          "days_excluded_by_cap": 1
+        },
+        "LLY": {
+          "days_in_top_k": 638,
+          "pct_of_days": 0.3558282208588957,
+          "days_excluded_by_cap": 1
+        },
+        "MA": {
+          "days_in_top_k": 126,
+          "pct_of_days": 0.07027328499721137,
+          "days_excluded_by_cap": 0
+        },
+        "META": {
+          "days_in_top_k": 420,
+          "pct_of_days": 0.23424428332403793,
+          "days_excluded_by_cap": 4
+        },
+        "MSFT": {
+          "days_in_top_k": 189,
+          "pct_of_days": 0.10540992749581707,
+          "days_excluded_by_cap": 0
+        },
+        "MU": {
+          "days_in_top_k": 294,
+          "pct_of_days": 0.16397099832682654,
+          "days_excluded_by_cap": 13
+        },
+        "NOW": {
+          "days_in_top_k": 252,
+          "pct_of_days": 0.14054656999442275,
+          "days_excluded_by_cap": 1
+        },
+        "NVDA": {
+          "days_in_top_k": 693,
+          "pct_of_days": 0.38650306748466257,
+          "days_excluded_by_cap": 16
+        },
+        "NVO": {
+          "days_in_top_k": 399,
+          "pct_of_days": 0.22253206915783602,
+          "days_excluded_by_cap": 0
+        },
+        "PANW": {
+          "days_in_top_k": 504,
+          "pct_of_days": 0.2810931399888455,
+          "days_excluded_by_cap": 2
+        },
+        "QQQ": {
+          "days_in_top_k": 50,
+          "pct_of_days": 0.02788622420524261,
+          "days_excluded_by_cap": 0
+        },
+        "SPY": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0,
+          "days_excluded_by_cap": 0
+        },
+        "TSLA": {
+          "days_in_top_k": 399,
+          "pct_of_days": 0.22253206915783602,
+          "days_excluded_by_cap": 22
+        },
+        "V": {
+          "days_in_top_k": 252,
+          "pct_of_days": 0.14054656999442275,
+          "days_excluded_by_cap": 0
+        }
+      }
+    },
+    "cap_100pct": {
+      "cap_pct": 100,
+      "metrics": {
+        "sharpe": 1.2870410613378107,
+        "cagr": 0.504326785386628,
+        "max_drawdown": 0.23774818911424855,
+        "in_market_pct": 0.7440044617958729
+      },
+      "rebalances": 80,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 281,
+          "pct_of_days": 0.15672058003346348,
+          "days_excluded_by_cap": 0
+        },
+        "AMD": {
+          "days_in_top_k": 588,
+          "pct_of_days": 0.3279419966536531,
+          "days_excluded_by_cap": 5
+        },
+        "AMZN": {
+          "days_in_top_k": 231,
+          "pct_of_days": 0.12883435582822086,
+          "days_excluded_by_cap": 0
+        },
+        "ANET": {
+          "days_in_top_k": 659,
+          "pct_of_days": 0.3675404350250976,
+          "days_excluded_by_cap": 1
+        },
+        "ASML": {
+          "days_in_top_k": 617,
+          "pct_of_days": 0.3441160066926938,
+          "days_excluded_by_cap": 0
+        },
+        "AVGO": {
+          "days_in_top_k": 714,
+          "pct_of_days": 0.39821528165086445,
+          "days_excluded_by_cap": 1
+        },
+        "CRWD": {
+          "days_in_top_k": 609,
+          "pct_of_days": 0.339654210819855,
+          "days_excluded_by_cap": 5
+        },
+        "GOOG": {
+          "days_in_top_k": 315,
+          "pct_of_days": 0.17568321249302846,
+          "days_excluded_by_cap": 0
+        },
+        "LLY": {
+          "days_in_top_k": 609,
+          "pct_of_days": 0.339654210819855,
+          "days_excluded_by_cap": 0
+        },
+        "MA": {
+          "days_in_top_k": 105,
+          "pct_of_days": 0.05856107083100948,
+          "days_excluded_by_cap": 0
+        },
+        "META": {
+          "days_in_top_k": 420,
+          "pct_of_days": 0.23424428332403793,
+          "days_excluded_by_cap": 3
+        },
+        "MSFT": {
+          "days_in_top_k": 126,
+          "pct_of_days": 0.07027328499721137,
+          "days_excluded_by_cap": 0
+        },
+        "MU": {
+          "days_in_top_k": 336,
+          "pct_of_days": 0.18739542665923034,
+          "days_excluded_by_cap": 9
+        },
+        "NOW": {
+          "days_in_top_k": 210,
+          "pct_of_days": 0.11712214166201897,
+          "days_excluded_by_cap": 0
+        },
+        "NVDA": {
+          "days_in_top_k": 777,
+          "pct_of_days": 0.43335192414947016,
+          "days_excluded_by_cap": 10
+        },
+        "NVO": {
+          "days_in_top_k": 378,
+          "pct_of_days": 0.21081985499163414,
+          "days_excluded_by_cap": 0
+        },
+        "PANW": {
+          "days_in_top_k": 512,
+          "pct_of_days": 0.28555493586168434,
+          "days_excluded_by_cap": 0
+        },
+        "QQQ": {
+          "days_in_top_k": 29,
+          "pct_of_days": 0.016174010039040714,
+          "days_excluded_by_cap": 0
+        },
+        "SPY": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0,
+          "days_excluded_by_cap": 0
+        },
+        "TSLA": {
+          "days_in_top_k": 567,
+          "pct_of_days": 0.3162297824874512,
+          "days_excluded_by_cap": 14
+        },
+        "V": {
+          "days_in_top_k": 252,
+          "pct_of_days": 0.14054656999442275,
+          "days_excluded_by_cap": 0
+        }
+      }
+    },
+    "cap_150pct": {
+      "cap_pct": 150,
+      "metrics": {
+        "sharpe": 1.3289360235074177,
+        "cagr": 0.5381273415468051,
+        "max_drawdown": 0.2573169683662315,
+        "in_market_pct": 0.7440044617958729
+      },
+      "rebalances": 80,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 281,
+          "pct_of_days": 0.15672058003346348,
+          "days_excluded_by_cap": 0
+        },
+        "AMD": {
+          "days_in_top_k": 638,
+          "pct_of_days": 0.3558282208588957,
+          "days_excluded_by_cap": 2
+        },
+        "AMZN": {
+          "days_in_top_k": 168,
+          "pct_of_days": 0.09369771332961517,
+          "days_excluded_by_cap": 0
+        },
+        "ANET": {
+          "days_in_top_k": 554,
+          "pct_of_days": 0.3089793641940881,
+          "days_excluded_by_cap": 0
+        },
+        "ASML": {
+          "days_in_top_k": 596,
+          "pct_of_days": 0.33240379252649194,
+          "days_excluded_by_cap": 0
+        },
+        "AVGO": {
+          "days_in_top_k": 714,
+          "pct_of_days": 0.39821528165086445,
+          "days_excluded_by_cap": 0
+        },
+        "CRWD": {
+          "days_in_top_k": 651,
+          "pct_of_days": 0.3630786391522588,
+          "days_excluded_by_cap": 1
+        },
+        "GOOG": {
+          "days_in_top_k": 294,
+          "pct_of_days": 0.16397099832682654,
+          "days_excluded_by_cap": 0
+        },
+        "LLY": {
+          "days_in_top_k": 567,
+          "pct_of_days": 0.3162297824874512,
+          "days_excluded_by_cap": 0
+        },
+        "MA": {
+          "days_in_top_k": 105,
+          "pct_of_days": 0.05856107083100948,
+          "days_excluded_by_cap": 0
+        },
+        "META": {
+          "days_in_top_k": 441,
+          "pct_of_days": 0.24595649749023982,
+          "days_excluded_by_cap": 0
+        },
+        "MSFT": {
+          "days_in_top_k": 126,
+          "pct_of_days": 0.07027328499721137,
+          "days_excluded_by_cap": 0
+        },
+        "MU": {
+          "days_in_top_k": 357,
+          "pct_of_days": 0.19910764082543222,
+          "days_excluded_by_cap": 8
+        },
+        "NOW": {
+          "days_in_top_k": 168,
+          "pct_of_days": 0.09369771332961517,
+          "days_excluded_by_cap": 0
+        },
+        "NVDA": {
+          "days_in_top_k": 945,
+          "pct_of_days": 0.5270496374790853,
+          "days_excluded_by_cap": 2
+        },
+        "NVO": {
+          "days_in_top_k": 357,
+          "pct_of_days": 0.19910764082543222,
+          "days_excluded_by_cap": 0
+        },
+        "PANW": {
+          "days_in_top_k": 470,
+          "pct_of_days": 0.2621305075292805,
+          "days_excluded_by_cap": 0
+        },
+        "QQQ": {
+          "days_in_top_k": 21,
+          "pct_of_days": 0.011712214166201896,
+          "days_excluded_by_cap": 0
+        },
+        "SPY": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0,
+          "days_excluded_by_cap": 0
+        },
+        "TSLA": {
+          "days_in_top_k": 630,
+          "pct_of_days": 0.3513664249860569,
+          "days_excluded_by_cap": 10
+        },
+        "V": {
+          "days_in_top_k": 252,
+          "pct_of_days": 0.14054656999442275,
+          "days_excluded_by_cap": 0
+        }
+      }
+    },
+    "cap_200pct": {
+      "cap_pct": 200,
+      "metrics": {
+        "sharpe": 1.3897624117283327,
+        "cagr": 0.5855439211872819,
+        "max_drawdown": 0.2734925857946394,
+        "in_market_pct": 0.7440044617958729
+      },
+      "rebalances": 80,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 273,
+          "pct_of_days": 0.15225878416062466,
+          "days_excluded_by_cap": 0
+        },
+        "AMD": {
+          "days_in_top_k": 659,
+          "pct_of_days": 0.3675404350250976,
+          "days_excluded_by_cap": 0
+        },
+        "AMZN": {
+          "days_in_top_k": 168,
+          "pct_of_days": 0.09369771332961517,
+          "days_excluded_by_cap": 0
+        },
+        "ANET": {
+          "days_in_top_k": 533,
+          "pct_of_days": 0.29726715002788623,
+          "days_excluded_by_cap": 0
+        },
+        "ASML": {
+          "days_in_top_k": 596,
+          "pct_of_days": 0.33240379252649194,
+          "days_excluded_by_cap": 0
+        },
+        "AVGO": {
+          "days_in_top_k": 630,
+          "pct_of_days": 0.3513664249860569,
+          "days_excluded_by_cap": 0
+        },
+        "CRWD": {
+          "days_in_top_k": 651,
+          "pct_of_days": 0.3630786391522588,
+          "days_excluded_by_cap": 1
+        },
+        "GOOG": {
+          "days_in_top_k": 273,
+          "pct_of_days": 0.15225878416062466,
+          "days_excluded_by_cap": 0
+        },
+        "LLY": {
+          "days_in_top_k": 567,
+          "pct_of_days": 0.3162297824874512,
+          "days_excluded_by_cap": 0
+        },
+        "MA": {
+          "days_in_top_k": 105,
+          "pct_of_days": 0.05856107083100948,
+          "days_excluded_by_cap": 0
+        },
+        "META": {
+          "days_in_top_k": 420,
+          "pct_of_days": 0.23424428332403793,
+          "days_excluded_by_cap": 0
+        },
+        "MSFT": {
+          "days_in_top_k": 105,
+          "pct_of_days": 0.05856107083100948,
+          "days_excluded_by_cap": 0
+        },
+        "MU": {
+          "days_in_top_k": 449,
+          "pct_of_days": 0.25041829336307864,
+          "days_excluded_by_cap": 3
+        },
+        "NOW": {
+          "days_in_top_k": 168,
+          "pct_of_days": 0.09369771332961517,
+          "days_excluded_by_cap": 0
+        },
+        "NVDA": {
+          "days_in_top_k": 945,
+          "pct_of_days": 0.5270496374790853,
+          "days_excluded_by_cap": 0
+        },
+        "NVO": {
+          "days_in_top_k": 357,
+          "pct_of_days": 0.19910764082543222,
+          "days_excluded_by_cap": 0
+        },
+        "PANW": {
+          "days_in_top_k": 449,
+          "pct_of_days": 0.25041829336307864,
+          "days_excluded_by_cap": 0
+        },
+        "QQQ": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0,
+          "days_excluded_by_cap": 0
+        },
+        "SPY": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0,
+          "days_excluded_by_cap": 0
+        },
+        "TSLA": {
+          "days_in_top_k": 735,
+          "pct_of_days": 0.4099274958170664,
+          "days_excluded_by_cap": 5
+        },
+        "V": {
+          "days_in_top_k": 252,
+          "pct_of_days": 0.14054656999442275,
+          "days_excluded_by_cap": 0
+        }
+      }
+    },
+    "cap_250pct": {
+      "cap_pct": 250,
+      "metrics": {
+        "sharpe": 1.4689454412412761,
+        "cagr": 0.6389343825708069,
+        "max_drawdown": 0.2734925857946393,
+        "in_market_pct": 0.7440044617958729
+      },
+      "rebalances": 80,
+      "selection_frequency": {
+        "AAPL": {
+          "days_in_top_k": 210,
+          "pct_of_days": 0.11712214166201897,
+          "days_excluded_by_cap": 0
+        },
+        "AMD": {
+          "days_in_top_k": 638,
+          "pct_of_days": 0.3558282208588957,
+          "days_excluded_by_cap": 0
+        },
+        "AMZN": {
+          "days_in_top_k": 168,
+          "pct_of_days": 0.09369771332961517,
+          "days_excluded_by_cap": 0
+        },
+        "ANET": {
+          "days_in_top_k": 533,
+          "pct_of_days": 0.29726715002788623,
+          "days_excluded_by_cap": 0
+        },
+        "ASML": {
+          "days_in_top_k": 575,
+          "pct_of_days": 0.32069157836029,
+          "days_excluded_by_cap": 0
+        },
+        "AVGO": {
+          "days_in_top_k": 630,
+          "pct_of_days": 0.3513664249860569,
+          "days_excluded_by_cap": 0
+        },
+        "CRWD": {
+          "days_in_top_k": 672,
+          "pct_of_days": 0.3747908533184607,
+          "days_excluded_by_cap": 0
+        },
+        "GOOG": {
+          "days_in_top_k": 273,
+          "pct_of_days": 0.15225878416062466,
+          "days_excluded_by_cap": 0
+        },
+        "LLY": {
+          "days_in_top_k": 567,
+          "pct_of_days": 0.3162297824874512,
+          "days_excluded_by_cap": 0
+        },
+        "MA": {
+          "days_in_top_k": 105,
+          "pct_of_days": 0.05856107083100948,
+          "days_excluded_by_cap": 0
+        },
+        "META": {
+          "days_in_top_k": 399,
+          "pct_of_days": 0.22253206915783602,
+          "days_excluded_by_cap": 0
+        },
+        "MSFT": {
+          "days_in_top_k": 84,
+          "pct_of_days": 0.046848856664807585,
+          "days_excluded_by_cap": 0
+        },
+        "MU": {
+          "days_in_top_k": 491,
+          "pct_of_days": 0.2738427216954824,
+          "days_excluded_by_cap": 1
+        },
+        "NOW": {
+          "days_in_top_k": 168,
+          "pct_of_days": 0.09369771332961517,
+          "days_excluded_by_cap": 0
+        },
+        "NVDA": {
+          "days_in_top_k": 945,
+          "pct_of_days": 0.5270496374790853,
+          "days_excluded_by_cap": 0
+        },
+        "NVO": {
+          "days_in_top_k": 357,
+          "pct_of_days": 0.19910764082543222,
+          "days_excluded_by_cap": 0
+        },
+        "PANW": {
+          "days_in_top_k": 449,
+          "pct_of_days": 0.25041829336307864,
+          "days_excluded_by_cap": 0
+        },
+        "QQQ": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0,
+          "days_excluded_by_cap": 0
+        },
+        "SPY": {
+          "days_in_top_k": 0,
+          "pct_of_days": 0.0,
+          "days_excluded_by_cap": 0
+        },
+        "TSLA": {
+          "days_in_top_k": 819,
+          "pct_of_days": 0.456776352481874,
+          "days_excluded_by_cap": 0
+        },
+        "V": {
+          "days_in_top_k": 252,
+          "pct_of_days": 0.14054656999442275,
+          "days_excluded_by_cap": 0
+        }
+      }
+    }
+  }
+}

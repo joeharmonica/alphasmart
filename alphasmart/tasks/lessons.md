@@ -1529,3 +1529,30 @@ It calls the same `read_halt()` used by the orchestrator itself, so it can't dis
 ### Rule
 
 **Never hand-roll a filesystem check for state a maintained CLI already exposes correctly — and be suspicious of any shell one-liner whose failure path is a plain `echo`.** A `command && echo ok || echo not-ok` pattern silently converts *any* left-side failure (missing binary, shell-level glob error, permission issue) into a clean, readable "not-ok" that looks exactly like a real negative result. When a status query matters operationally (gates whether a live system trades), prefer the system's own status accessor over a hand-rolled proxy for it, and if a proxy is unavoidable, make its own failure mode loud (e.g. `set -o nounset -o pipefail`, or check the glob with `[ -e file ]` instead of relying on `ls`'s exit code through a pipe).
+
+---
+
+## 66. Momentum-Cap Filter (Motivated by MU's Live Drag) Backtests Worse Than Uncapped — a Hindsight-Bias Trap
+
+**Motivation (2026-07-31).** After the #59 universe expansion, MU entered the live top-5 on 2026-06-29 at **+299.8%** trailing 126d momentum and has dragged the book roughly −$3 to −5k unrealized ever since; CRWD (also added 6/29) separately crashed −60% before being rotated out on 7/08. The natural next question: would excluding "overextended" names above a momentum cap have avoided these two specific picks, and would it have helped overall?
+
+### Backtest (`run_momentum_cap.py`, matched window 2019-06-12 → 2026-07-30 per lesson #59's methodology)
+
+Tested caps at 75/100/150/200/250% trailing-momentum, hard-excluding any symbol over the cap from top-5 selection (equal-weighting among fewer names when the cap binds):
+
+| Variant | Sharpe | CAGR | MaxDD | Δ Sharpe vs uncapped |
+|---|---:|---:|---:|---:|
+| Uncapped (current) | 1.459 | 63.0% | 30.7% | — |
+| Cap 75% | 1.310 | 50.6% | 22.7% | −0.149 |
+| Cap 100% | 1.287 | 50.4% | 23.8% | **−0.172 (worst)** |
+| Cap 150% | 1.329 | 53.8% | 25.7% | −0.130 |
+| Cap 200% | 1.390 | 58.6% | 27.3% | −0.069 |
+| Cap 250% | 1.469 | 63.9% | 27.3% | +0.010 (≈ no-op) |
+
+**Every binding cap threshold reduced Sharpe and CAGR.** MaxDD did improve (cutting the biggest winners also removes some of the biggest crashes), but the net risk-adjusted return got worse at every level that actually excludes names with meaningful frequency. Over the full window, a 75% cap only excludes MU on 13 of 80 rebalance dates and CRWD on 10 — rare — and 6/29/2026 happens to be one of the unlucky ones.
+
+**Yet the cap would have caught the exact incident that motivated it**: at +299.8%, MU breaches every tested cap on 6/29, and would have been excluded from that specific rotation.
+
+### Rule
+
+**A rule proposed in response to one bad outcome must be graded on its full historical track record, not on whether it would have prevented that one outcome.** This is the same family as lesson #62 (resist the post-change validation trap) and #47 (period-dependent Sharpe): the emotionally compelling evidence (MU hurt us, a cap would have stopped it) is a sample of one, while the backtest is a sample of ~80 rebalances. Extreme trailing momentum has enough positive serial correlation in this universe that systematically excluding it removes more genuine winners than it screens out genuine blow-ups — the "fix" trades a known, recent pain point for an unknown, larger, diffuse cost spread across the rest of history. **Decision: do not implement the momentum cap.** If MU's drag persists past the extended 60-day checkpoint (~2026-08-30), the better-supported lever is revisiting universe membership or position sizing, not a rule shown to net-negative in backtest.
