@@ -1444,3 +1444,88 @@ A +5.2% jump in the ~2 trading days immediately after a config change is **stati
 ### Rule
 
 **A strong move right after you change something is the least trustworthy data you will see — it is where confirmation bias is strongest and the sample is smallest.** Record it as a checkpoint, tie the real evaluation to a pre-committed horizon, and let the ex-ante backtest (not the post-hoc pop) carry the decision. Momentum strategies are especially prone to this because the names you just added are by construction the recent winners.
+
+---
+
+## 63. AlphaSmart Trader — Always-On Shorts Drag in a Bull Decade; Regime-Gated "Hedge" Shorts Keep the Momentum CAGR and Cut the Drawdown
+
+**Context (2026-07-09).** Built the AlphaSmart Trader: a weekly-cadence long/short book on an extended 55-name large-cap universe (`src/trader/`), backtested through a new portfolio-level long/short engine (`src/trader/backtest.py`, 5 bps/side + 1.5% borrow APR, next-bar execution, matched 2017-07→2026-07 window) against the live monthly book re-run through the *same* engine and cost model.
+
+### What failed
+
+Every always-on short book underperformed the long-only monthly benchmark (Sharpe 0.97, CAGR 35.4%):
+
+| Variant | Sharpe | CAGR | Why it lost |
+|---|---|---|---|
+| Weekly momo+reversal L8/S4 (100/30) | 0.54 | +10.5% | reversal noise + 49× turnover |
+| Weekly dual momentum L8/S4 (100/30) | 0.85 | +22.4% | permanent 30% short gross in a decade-long bull |
+| Weekly 5d reversal market-neutral (60/60) | −0.20 | −5.5% | weekly reversal in large caps is dead after costs (104× turnover) |
+
+Shorting the momentum bottom in a mega-cap bull market pays borrow + costs to fight the index. Diluting the long book from top-5 to top-8 also gave up the concentration that drives the benchmark's CAGR.
+
+### What worked
+
+`wk_dual_momo_hedged`: keep the benchmark's concentration (long top-5, 100% gross) at **weekly** cadence with a **regime-gated** short book — shorts (bottom-5, 50% gross) turn on only when SPY < 200d-MA, with the long book halved. The short leg is a crash hedge, not an always-on alpha source. Result on the matched window: **Sharpe 1.14 vs 0.97, CAGR 35.3% vs 35.4%, MaxDD 33.1% vs 39.2%**, and it beats the benchmark in *both* halves (H2 Sharpe 1.04 vs 0.77). Signal composite `z(63d)+z(126d) momentum − 0.3·z(5d run-up)` adds a modest entry-timing edge over plain 126d (1.14 vs 1.12).
+
+### Rule
+
+**In a structurally-long asset class, earn the short book's keep with a regime trigger, not a permanent allocation.** Long/short ≠ always-short: the risk-off-only short book converts "flat to cash" downside protection into paid downside exposure without taxing the bull-market long alpha. And compare candidates only through the same engine, costs, and window as the incumbent — the benchmark's README Sharpe (1.771, 2015-start, ETF legs included) is not comparable to an engine-matched 0.97.
+
+*Forward test:* runs as `com.alphasmart.trader` (weekdays 21:10 HK), simulated fills isolated from the Alpaca account (per #60), state under `reports/paper_trade/state/alphasmart_trader.*`, method selectable from the dashboard's Backtests tab.
+
+---
+
+## 64. A12 — Order Sizing Mixed Two Price Bases: Broker's Mark for "Current Value," Our Feed for Share Conversion
+
+**Symptom (2026-07-08, root cause of the halt investigated under lesson #63's Trader work).** The 7/08 rebalance halted on `per_symbol_drift=0.1481>0.03` for MU. Unlike every prior halt in #43/#52, the reconciler's `pending_adjust` downgrade logic was working correctly (PANW, which had the same kind of in-flight order, got downgraded to `pending_adjust` as designed) — this halt was **not a reconciler false positive**. A live broker probe post-fill confirmed it: MU settled at 21.423228 shares vs an expected 20.772627 (+3.13%, ~$650, ~0.6% of the book) and would **not** self-heal, because the order itself was mis-sized.
+
+### Root cause
+
+`StrategyRunner._compute_orders`'s standard branch computed:
+```
+delta_value = target_weight * portfolio_value − current_weight * portfolio_value
+qty = delta_value / latest_prices[sym]           # OUR yfinance close
+```
+but `current_weight` came from `p.market_value / portfolio_value`, where `market_value` is the **broker's own mark price** times its qty. Two different price sources feed one formula: the dollar delta is computed against the broker's price, then converted to shares using ours. When the two diverge, the order — even filled in full — doesn't land on `target_qty`; it leaves a residual of `current_qty * (1 − broker_price / our_price)`.
+
+The divergence is *structurally worst on exactly the names the strategy most wants to hold*: this is a momentum strategy, so the names in the top-5 are, by construction, the fastest-moving prices in the universe — MU was +265% trailing 126d. A yfinance daily close that's even one session stale diverges furthest from Alpaca's live mark precisely on the names with the most momentum. Calmer names (AMD, ASML) stayed under the 3% halt threshold; MU didn't.
+
+### Fix (A12)
+
+Rewrote the standard branch to size in **share quantity terms against a single price basis** (ours) instead of dollar-delta terms mixing two bases:
+```
+target_qty      = target_weight * portfolio_value / our_price
+net_current_qty = broker_qty + pending_signed_qty     # both basis-independent share counts
+order_qty       = target_qty − net_current_qty
+```
+`broker_qty` is a plain share count — it doesn't carry a price basis, so this formula is exact regardless of what the broker's own mark was at submission time. Verified by replaying the actual 2026-07-08 MU numbers through the fixed code: the old formula produced a 3.727255-share buy (landing on 21.423228, +3.13% over target); the fixed formula produces 3.076654 (landing exactly on 20.772627). Regression test: `test_standard_branch_sizing_is_qty_exact_despite_price_divergence` in `tests/test_strategy_runner.py`, using a synthetic 10%-mark-divergence scenario so the failure mode is exercised without depending on live data.
+
+### Rule
+
+**When sizing a trade as a dollar delta, every price that touches the formula must come from the same source.** Mixing "current value" (broker mark) with "shares needed" (our feed) is invisible when the two prices agree — which is most of the time, so it slips through testing — and only bites when they diverge, which correlates with exactly the volatility momentum strategies chase. Prefer sizing in quantity terms whenever an authoritative share count is available (it already was, via `current_qty_by_symbol`, used elsewhere in the same function for the full-close branch) — quantities don't carry a price basis to get mismatched.
+
+---
+
+## 65. A Broken Ad-Hoc Halt Check Hid a Live Halt for 23 Days — the Codebase's Own Status Command Was Right All Along
+
+**Incident (2026-07-31).** The 7/08 halt (see #64's A12 root cause) was cleared in code but the operational check I used to confirm it was live-broken. On 2026-07-20 I verified halt status with a hand-rolled shell one-liner:
+
+```bash
+ls reports/paper_trade/state/halt* 2>/dev/null && echo "HALTED" || echo "NOT HALTED"
+```
+
+In zsh, an unmatched glob (`halt*` when no halt file exists) is a **shell-level expansion error**, not a command that runs and fails — `ls` never executes, so `2>/dev/null` (which only redirects the *command's* stderr) never sees it. The glob-expansion error prints straight to the terminal, and the `&&`/`||` chain — evaluating the failed compound statement — took the `||` branch and printed **"NOT HALTED" regardless of the true state**. This is the *inverse* of the usual "test verifies nothing" failure: it wasn't silent because it checked nothing, it was silent because it produced a confident, wrong answer that read as a successful check.
+
+**Impact:** the halt had in fact never been cleared since 2026-07-08. Every status update between 7/20 and 7/30 (six of them) correctly reported live equity and positions (those came from a real broker query) but incorrectly asserted "no rotation needed" / operational health — the portfolio was actually frozen the entire time, and it was only pure coincidence that no real momentum rotation happened to be due until 7/31, when the frozen state finally blocked a genuine, needed trade.
+
+### The fix isn't a new check — it's not inventing one
+
+`runner_main status` already existed and reports exactly the right thing:
+```json
+{"channel": "equity_xsec_momentum_B", "halt_active": false, "halt": null, ...}
+```
+It calls the same `read_halt()` used by the orchestrator itself, so it can't disagree with what actually gates trading. The ad-hoc `ls`/glob check was redundant *and less trustworthy* than the tool already sitting in the codebase.
+
+### Rule
+
+**Never hand-roll a filesystem check for state a maintained CLI already exposes correctly — and be suspicious of any shell one-liner whose failure path is a plain `echo`.** A `command && echo ok || echo not-ok` pattern silently converts *any* left-side failure (missing binary, shell-level glob error, permission issue) into a clean, readable "not-ok" that looks exactly like a real negative result. When a status query matters operationally (gates whether a live system trades), prefer the system's own status accessor over a hand-rolled proxy for it, and if a proxy is unavoidable, make its own failure mode loud (e.g. `set -o nounset -o pipefail`, or check the glob with `[ -e file ]` instead of relying on `ls`'s exit code through a pipe).
