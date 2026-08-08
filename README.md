@@ -18,9 +18,11 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **Steps 3–5** | Regime filter, V2 composites, intraday mini-batch | ✅ 2026-04-07 |
 | 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$98.9k, top-5 mega-cap basket |
 | 6 — Live Deployment | Real capital, broker integration | 🔜 Planned |
-| **Operational hardening** | A1-A11 reconciler/preflight/cadence fixes + health-check + launchd migration + state-write guard | ✅ Ongoing 2026-05-17 → 2026-06-27 ([lessons.md #42-#43, #49-#61](alphasmart/tasks/lessons.md)) |
+| **Operational hardening** | A1-A13 reconciler/preflight/cadence fixes + health-check + launchd migration + state-write guard + caffeinate | ✅ Ongoing 2026-05-17 → 2026-08-04 ([lessons.md #42-#43, #49-#61, #65, #67](alphasmart/tasks/lessons.md)) |
 | **Universe expansion (17 → 21)** | Market-cap rule: add MU, PANW, CRWD, ANET | ✅ 2026-06-27 ([lessons.md #59](alphasmart/tasks/lessons.md)) |
 | **Research: leveraged-ETF DCA** | 10y DCA backtest, 6 strategy variants × 5 tickers + weekly research poll | ✅ Merged 2026-05-17 ([lessons.md #44-#50, #61](alphasmart/tasks/lessons.md), reports under `alphasmart/reports/leveraged_etf_dca*/`) |
+| **AlphaSmart Trader (weekly L/S)** | 55-name extended universe, long/short engine, 11-method backtest grid, sim-paper runner + LaunchAgent | 🟢 **Sim paper since 2026-07-09** — `wk_dual_momo_hedged` (backtest Sharpe 1.14 vs benchmark 0.97, matched window; [lessons.md #63](alphasmart/tasks/lessons.md)) |
+| **Live Desk dashboard** | 5-tab ops UI: Portfolio / Trader / Backtests / Tickers / Logs + ticker moat/TA/fair-value intel | ✅ 2026-07-09 — `cd alphasmart/frontend && npm run dev` |
 
 > The current paper-trade run uses the equity leg only (`equity_xsec_momentum_B`): **21-symbol** mega-cap cross-sectional 6-month (126-trading-day) momentum, top-5 equal-weight, gated by SPY > 200d-MA. Rebalance fires on **top-5 membership rotation (any day) or a monthly cadence floor** (first weekday cron of a new month, ≥14 trading days since last rebalance) — see "Rebalance cadence" below. Universe history: v2 (2026-05-11) added AMD + LLY; v3 (2026-06-27) added MU/PANW/CRWD/ANET by market-cap rule (backtest: 21-set Sharpe 1.771 vs 1.712 baseline on matched window, +8.2pts CAGR, +4.8pts MaxDD). See `alphasmart/tasks/strategies.md` for the audit trail and `alphasmart/tasks/paper_trade_design.md` for the design + pass/fail rubric.
 
@@ -49,7 +51,7 @@ The cron runs **every weekday 21:00 HK** (09:00 ET) and recomputes the target to
 
 Otherwise the run is `cadence_blocked` — a clean no-op (exit 0, no trade). Even when rebalancing, orders < 0.5% of portfolio are skipped (no-trade band). Auxiliary schedules: **health-check** twice daily (09:00 + 22:00 HK), **leveraged-ETF research poll** weekly (Sat 22:00). In practice the rotation trigger has driven ~weekly trading (6 rebalances in the first 7 weeks) — higher turnover than the backtest's monthly assumption, which is cost-neutral at Alpaca paper's ~zero slippage but a drag at real-money slippage (>10–15 bps; see lessons.md #54).
 
-### Operational hardening journey (2026-05-11 → 2026-06-27, lessons #42–#61)
+### Operational hardening journey (2026-05-11 → 2026-08-04, lessons #42–#67)
 
 A multi-week sprint closing every false-positive halt/block class observed in production, plus the scheduler-reliability and data-freshness issues underneath them. Each fix surfaced the next:
 
@@ -66,8 +68,55 @@ A multi-week sprint closing every false-positive halt/block class observed in pr
 | 6-16 → 6-18 | 12/17 symbols frozen 3 days despite "Fetched N bars" | A10's 96h shared flag also gated the poller's skip-if-fresh | A11 dedicated `--poll-fresh-hours` (20h) | [#58](alphasmart/tasks/lessons.md) |
 | 6-27 | `--mock` dry-run overwrote production state file | `state.write()` ran unconditionally with production state root | guard: mock/shadow redirect to diagnostic state root | [#60](alphasmart/tasks/lessons.md) |
 | 6-27 | leveraged-ETF research symbols 6 weeks stale | out-of-universe → daily poller never fetched them | weekly fail-open `etf_research_poll` LaunchAgent | [#61](alphasmart/tasks/lessons.md) |
+| 7-20 | a stale 7-08 halt sat undetected for 23 days, blocking a real rotation | ad-hoc `ls halt*` shell check silently mis-reported "not halted" on a zsh glob error | use the existing `runner_main status` (`halt_active`) instead of hand-rolled filesystem checks | [#65](alphasmart/tasks/lessons.md) |
+| 8-04 | rebalance completed then crashed with uncaught `KeyError` — no completion summary | reconciler's phantom/pending-close branch indexed `broker_by_sym[sym]` unconditionally; a full-close race (position settled to 0, closing order still "open") hit a symbol in neither `expected` nor `broker_by_sym` | A13: `.get()` + explicit `broker_qty==0.0 → pending_close`; `caffeinate -i -s` added to all 3 LaunchAgents (the crash's precondition was an 89-min mid-run stall from repeated idle-sleep cycling) | [#67](alphasmart/tasks/lessons.md) |
 
-**Net outcome:** the reconciler distinguishes four in-flight order classes (`pending_fill` / `pending_close` / `pending_adjust` / `ok-within-skip-band`) from genuine drift / phantom / missing that *should* halt; the cadence gate is calendar-anchored and unit-correct; preflight survives transient broker blips and weekend/Monday data-age quirks; the daily poller and preflight freshness checks have independent thresholds; and mock/shadow diagnostics can no longer corrupt live state. Real failures (corporate actions, unauthorized trades, broker corruption) still halt by design. **Zero false-positive halts since 2026-05-18.**
+**Net outcome:** the reconciler distinguishes four in-flight order classes (`pending_fill` / `pending_close` / `pending_adjust` / `ok-within-skip-band`) from genuine drift / phantom / missing that *should* halt, and no longer crashes uncaught on a full-close race that lands a symbol outside both its expected-state and broker-position sets; the cadence gate is calendar-anchored and unit-correct; preflight survives transient broker blips and weekend/Monday data-age quirks; the daily poller and preflight freshness checks have independent thresholds; mock/shadow diagnostics can no longer corrupt live state; halt status is checked via the canonical `runner_main status` accessor, not ad-hoc shell checks; and every scheduled job holds a wake assertion for its own duration. Real failures (corporate actions, unauthorized trades, broker corruption) still halt by design. **Zero false-positive halts since 2026-05-18** (one uncaught crash on 8-04, fixed as A13 — not a halt, but a real gap that could have masked one).
+
+---
+
+## AlphaSmart Trader — weekly long/short (sim paper, 2026-07-09 →)
+
+The second forward-tested book, built to be *on par or better than* the monthly momentum
+strategy with a short side for downtrends. Design + falsified alternatives in
+[lessons.md #63](alphasmart/tasks/lessons.md); audit trail in
+[strategies.md §5](alphasmart/tasks/strategies.md).
+
+- **Method `wk_dual_momo_hedged`:** cross-sectional composite `z(63d)+z(126d) momentum − 0.3·z(5d run-up)`
+  on a **55-name** extended large-cap universe (`src/trader/universe.py`). Long top-5 (100% gross) at
+  weekly cadence; a bottom-5 short book (50% gross) switches on **only** when SPY < 200d-MA with the
+  long book halved — the short leg is a crash hedge, not a permanent allocation.
+- **Backtest, matched window + identical engine/costs (5 bps/side + 1.5% borrow APR), 2017-07 → 2026-07:**
+
+  | | Sharpe | CAGR | MaxDD | H1/H2 Sharpe | Turnover |
+  |---|---|---|---|---|---|
+  | `wk_dual_momo_hedged` | **1.14** | 35.3% | **33.1%** | 1.26 / **1.04** | 21×/yr |
+  | benchmark (live monthly book, same engine) | 0.97 | 35.4% | 39.2% | 1.27 / 0.77 | 6×/yr |
+
+  Always-on short books and weekly reversal were tested and rejected (Sharpe 0.54–0.88 and −0.20);
+  all 11 reports live in `alphasmart/reports/trader_backtests/`, regenerable via
+  `venv/bin/python scripts/run_trader_backtests.py`.
+- **Paper loop (`src/trader/paper_runner.py`):** simulated fills at last close ± 5 bps against a local
+  sim account — **fully isolated from the Alpaca paper account** (lesson #60 discipline). State/trades/equity
+  under `reports/paper_trade/state/alphasmart_trader.*`; forensic events on the `alphasmart_trader`
+  shadow-log channel. Scheduled weekdays **21:10 HK** via LaunchAgent `com.alphasmart.trader`
+  (10 min after the main book). Triggers: 5-trading-day cadence, long-book rotation, or `--force-rebalance`.
+- **Method selection:** the dashboard's Backtests tab (or `dashboard_bridge.py set_method <id>`) writes
+  `reports/paper_trade/state/trader_method.json`, which the paper loop reads on its next run.
+  **No live-trading path exists in the Trader code by design.**
+
+## Live Desk dashboard
+
+`cd alphasmart/frontend && npm run dev` → http://localhost:3000 (the old research console moved to `/research`).
+Data is served by `alphasmart/dashboard_bridge.py` (fast stdlib-only bridge; ~30 ms per call).
+
+| Tab | Shows |
+|---|---|
+| **Portfolio** | Live monthly book: marked equity, holdings vs target weights, halt banner + reason, rebalance history, latest momentum check + regime |
+| **Trader** | Sim equity curve, open long/short positions, every trade with trigger + rationale, latest signal evaluation with per-symbol scores, warnings feed |
+| **Backtests** | All 11 method reports on the matched window (Sharpe/CAGR/MaxDD/sub-period robustness/turnover), equity curves, monthly returns, per-rebalance rationale; **select the paper method** (live column locked until Phase 6) |
+| **Tickers** | All 62 DB symbols: price coverage, candles + full history, and per-ticker **economic moat** (0–100 + Wide/Narrow/None), **technical score** (0–100 + signal), **fair value** (analyst target + Graham blend, upside %) with explicit capability flags (`scripts/ticker_intel.py`) |
+| **Logs** | Merged shadow-log stream across all channels (1–30 d), level/channel filters, warnings surfaced |
 
 ---
 

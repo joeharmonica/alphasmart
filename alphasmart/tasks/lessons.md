@@ -1556,3 +1556,27 @@ Tested caps at 75/100/150/200/250% trailing-momentum, hard-excluding any symbol 
 ### Rule
 
 **A rule proposed in response to one bad outcome must be graded on its full historical track record, not on whether it would have prevented that one outcome.** This is the same family as lesson #62 (resist the post-change validation trap) and #47 (period-dependent Sharpe): the emotionally compelling evidence (MU hurt us, a cap would have stopped it) is a sample of one, while the backtest is a sample of ~80 rebalances. Extreme trailing momentum has enough positive serial correlation in this universe that systematically excluding it removes more genuine winners than it screens out genuine blow-ups — the "fix" trades a known, recent pain point for an unknown, larger, diffuse cost spread across the rest of history. **Decision: do not implement the momentum cap.** If MU's drag persists past the extended 60-day checkpoint (~2026-08-30), the better-supported lever is revisiting universe membership or position sizing, not a rule shown to net-negative in backtest.
+
+---
+
+## 67. A13 — A Full-Close Race Crashed the Reconciler with an Uncaught KeyError, Silently Skipping Its Own Halt Decision
+
+**Incident (2026-08-04).** The scheduled 21:00 HK rebalance (a rotation dropping AAPL, adding AMZN) ran correctly — pre-flight passed, 5 orders submitted, zero signal-equivalence drift — then **crashed immediately after** with an unhandled `KeyError: 'AAPL'` inside `reconciler.py:180`. Diagnosed initially as "who ran this," since the crash left no completion summary and the run's wall-clock span (89 minutes between the data poll finishing and the rebalance logic starting) looked like two separate invocations. Cross-referencing the shadow log's embedded PID against macOS's unified system log (`log show`) proved it was a **single legitimate launchd-fired process (PID 69421)** that stalled for ~89 minutes while the idle Mac cycled through repeated dark-wake/sleep events roughly every 10–16 minutes — the same underlying fragility as lesson #51, just manifesting as an in-flight stall rather than a missed firing.
+
+### Root cause
+
+`reconciler.reconcile()` builds `all_syms = set(expected) | set(broker_by_sym) | set(pending_by_sym)`, then for any symbol not in `expected`, assumed it must be in `broker_by_sym` (`pos = broker_by_sym[sym]`, unconditional). That's false for a narrow but real race: AAPL's full-close SELL had **already settled to zero at the broker** (dropped out of `get_positions()`) by the time `reconcile()` ran, but its closing order **still appeared "open"** in the orders API for that instant — so AAPL landed in `all_syms` solely via `pending_by_sym`, present in neither `expected` (correctly excluded — the rotation dropped it) nor `broker_by_sym` (correctly empty — the close was done). The indexing crashed instead of recognizing "broker qty 0 + a closing pending SELL = already fully closed, not a problem."
+
+**Why this matters beyond one ugly stack trace:** `reconcile()`'s halt decision (`write_halt()` in the caller) only runs if `reconcile()` returns normally. An uncaught exception here means **whatever the correct halt verdict should have been for this run silently never got made** — if real drift had also been present alongside the AAPL race, the halt that should have fired would have been skipped entirely, with only a traceback in a log file as any indication something was wrong.
+
+### Fix (A13)
+
+`reconciler.py`'s phantom/pending-close branch now uses `broker_by_sym.get(sym)` instead of `[sym]`, treats a missing broker position as `broker_qty = 0.0`, and classifies `broker_qty == 0.0` unconditionally as `pending_close` (a position that's already fully closed can never be phantom or a halt condition, regardless of what the pending-orders API still shows). Regression test `test_reconciler_pending_close_for_already_fully_closed_symbol_no_crash` in `tests/test_reconciler.py` reproduces the exact race (symbol absent from both `expected` and broker positions, present only via a pending SELL) and asserts no exception and a clean `pending_close` classification. Full suite: 364 passing (2 pre-existing, unrelated failures untouched).
+
+### Fix (operational): `caffeinate` on every LaunchAgent
+
+Added `caffeinate -i -s` as the first `ProgramArguments` entry on all three repo-tracked LaunchAgents (`rebalance`, `healthcheck`, `etf_research_poll`) — the wake-assertion now holds for the job's own duration, rather than only across launchd's initial wake-to-fire moment. This targets the *stall*, not the crash: the crash needed a code fix; the 89-minute stall that exposed the race needed the job to stop being interruptible by idle sleep mid-execution.
+
+### Rule
+
+**A reconciliation/health-check function is exactly the code that must never crash uncaught — its entire job is to decide whether to raise an alarm, and an unhandled exception silently discards that decision instead of erring toward safety.** Any `dict[key]` access inside a function whose output gates a halt should be treated as a potential silent-safety-net hole: prefer `.get()` with an explicit "what does missing actually mean here" branch over trusting that a value pulled from one data source will always have a matching key in another. This is the same family as lesson #43/#52 (full-close and pending-order races the reconciler must classify, not choke on) — this incident is the same race one layer deeper, hitting the indexing itself rather than the classification logic.

@@ -540,6 +540,46 @@ def test_reconciler_subthreshold_already_ok_not_promoted(reconciler, broker, sta
     assert amd.classification == "ok"
 
 
+def test_reconciler_pending_close_for_already_fully_closed_symbol_no_crash(
+    reconciler, broker, state,
+):
+    """
+    Regression for the 2026-08-04 live crash (lessons.md #67): a rotation
+    drops AAPL from the target (state no longer expects it), and AAPL's
+    full-close SELL settles at the broker (qty -> 0, dropped from
+    get_positions()) BEFORE the orders API stops listing that SELL as
+    "open". `all_syms` then includes AAPL solely via `pending_by_sym`
+    (not in `expected`, not in `broker_by_sym`), and the old code did
+    `pos = broker_by_sym[sym]` unconditionally in that branch ->
+    KeyError('AAPL'), an uncaught crash that skipped write_halt() entirely
+    for whatever the run's real halt verdict should have been.
+
+    AAPL is never added as a broker position here (simulating "already
+    fully closed"); only a pending SELL order references it.
+    """
+    from src.execution.broker.alpaca_paper import AlpacaOrderResult
+    from datetime import datetime, timezone
+
+    # New target excludes AAPL (the post-rotation state)
+    state.write("s", "rb",
+                target_weights={"AMD": 1.0},
+                portfolio_value=1000.0, latest_prices={"AMD": 100.0})
+    broker.submit_order(AlpacaOrderRequest(symbol="AMD", qty=10.0, side="buy"))
+    # AAPL has NO broker position (already fully closed / never opened here)
+    # but its closing SELL still shows as "open" in the orders API.
+    broker._mock_orders.append(AlpacaOrderResult(
+        id="pending-sell-closed", client_order_id="cid", symbol="AAPL",
+        qty=5.0, side="sell", submitted_at=datetime.now(timezone.utc),
+        status="new", filled_qty=0.0,
+    ))
+    result = reconciler.reconcile()  # must not raise KeyError
+    assert result.should_halt is False, f"unexpected halt: {result.halt_reason}"
+    aapl = [s for s in result.symbols if s.symbol == "AAPL"][0]
+    assert aapl.classification == "pending_close"
+    assert aapl.broker_qty == 0.0
+    assert "AAPL" not in result.phantom_symbols
+
+
 def test_reconciler_logs_full_per_symbol_breakdown(reconciler, broker, state, tmp_root):
     state.write("s", "rb",
                 target_weights={"AAPL": 1.0},

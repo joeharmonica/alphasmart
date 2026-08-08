@@ -170,30 +170,41 @@ class Reconciler:
                     pending_open_qty=pending_qty,
                 ))
             else:
-                # Broker has a position the strategy doesn't expect.
+                # Broker has a position the strategy doesn't expect — OR
+                # (a narrower race, lessons.md #67) `sym` only landed in
+                # `all_syms` via `pending_by_sym`: a pending order still
+                # references it while the broker has ALREADY fully closed
+                # the position (qty settled to 0 and dropped out of
+                # get_positions() faster than the orders API stopped
+                # listing the closing order as open). `.get()` instead of
+                # `[sym]` avoids a KeyError on that case — a broker_qty of
+                # 0.0 alongside a pending SELL is a clean, already-completed
+                # close, never a phantom/halt condition.
+                #
                 # Symmetric to the pending_fill branch above: if a pending
                 # SELL is queued that will close (or near-close) the position
                 # within the per-symbol threshold, treat it as `pending_close`
                 # rather than `phantom`. Without this, every cross-asset swap
                 # submitted while the market is closed would write a
                 # false-positive halt (lessons.md #43).
-                pos = broker_by_sym[sym]
-                effective_broker = pos.qty + pending_qty   # pending SELL is negative
+                pos = broker_by_sym.get(sym)
+                broker_qty = pos.qty if pos is not None else 0.0
+                effective_broker = broker_qty + pending_qty   # pending SELL is negative
                 # Residual fraction of original position that would remain post-fill.
                 # Positive only when effective_broker is still on the long side and
-                # comparable in magnitude to pos.qty.
+                # comparable in magnitude to broker_qty.
                 residual_pct = (
-                    abs(effective_broker) / abs(pos.qty) if pos.qty != 0 else float("inf")
+                    abs(effective_broker) / abs(broker_qty) if broker_qty != 0 else 0.0
                 )
-                if pending_qty < 0 and residual_pct <= self.per_symbol_threshold:
+                if broker_qty == 0.0 or (pending_qty < 0 and residual_pct <= self.per_symbol_threshold):
                     classification = "pending_close"
                 else:
                     classification = "phantom"
                 symbols.append(SymbolDrift(
                     symbol=sym,
-                    expected_qty=0.0, broker_qty=pos.qty,
-                    drift_qty=pos.qty,
-                    drift_pct=float("inf"),
+                    expected_qty=0.0, broker_qty=broker_qty,
+                    drift_qty=broker_qty,
+                    drift_pct=float("inf") if broker_qty != 0 else 0.0,
                     classification=classification,
                     pending_open_qty=pending_qty,
                 ))

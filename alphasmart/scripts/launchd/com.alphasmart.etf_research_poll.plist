@@ -9,8 +9,12 @@
          (QLD/TQQQ/UPRO). These are NOT in the live trade universe; this job
          exists solely to keep the DCA-research data fresh. A failure here
          must never affect the trade pipeline (see lessons.md #58/#61). -->
+    <!-- caffeinate -i -s per lessons.md #67 — see com.alphasmart.rebalance.plist. -->
     <key>ProgramArguments</key>
     <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-i</string>
+        <string>-s</string>
         <string>/bin/bash</string>
         <string>/Users/joepong/alphasmart/alphasmart/scripts/etf_research_poll.sh</string>
     </array>

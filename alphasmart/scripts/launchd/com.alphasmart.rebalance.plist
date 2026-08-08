@@ -5,8 +5,17 @@
     <key>Label</key>
     <string>com.alphasmart.rebalance</string>
 
+    <!-- caffeinate -i -s wraps the job so it holds a wake assertion for
+         its own duration (lessons.md #67): without this, a scheduled run
+         that starts fine can be stalled mid-execution for extended
+         periods by the Mac cycling through idle/dark-wake sleep, since
+         nothing prevents the machine from sleeping again once launchd's
+         own brief wake-to-fire window ends. -->
     <key>ProgramArguments</key>
     <array>
+        <string>/usr/bin/caffeinate</string>
+        <string>-i</string>
+        <string>-s</string>
         <string>/Users/joepong/alphasmart/alphasmart/venv/bin/python</string>
         <string>-m</string>
         <string>src.execution.runner_main</string>

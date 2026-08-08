@@ -31,7 +31,7 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **9 — First uncorrelated pair** | Equity xsec mom + crypto xsec mom, monthly ρ=0.40, var-reduction 32% | ✅ **2026-05-03 — 2 of ≥3 needed (lesson #39)** |
 | **10 — Regime filter** | Asset > 200d-MA gate (SPY for equity, BTC for crypto) | ✅ **2026-05-03 — Sharpe +0.4 to +0.5, MaxDD halved, 2022 dodged (lesson #40)** |
 | 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$98.9k, top-5 mega-cap basket; see snapshot below |
-| **Operational hardening** | A1-A11 reconciler/preflight/cadence fixes + health-check + cron→launchd + state-write guard | ✅ Ongoing 2026-05-17 → 2026-06-27 ([lessons.md #42-#43, #49-#61](tasks/lessons.md)) |
+| **Operational hardening** | A1-A13 reconciler/preflight/cadence fixes + health-check + cron→launchd + state-write guard + caffeinate | ✅ Ongoing 2026-05-17 → 2026-08-04 ([lessons.md #42-#43, #49-#61, #65, #67](tasks/lessons.md)) |
 | **Universe expansion (17 → 21)** | Market-cap rule: + MU, PANW, CRWD, ANET | ✅ 2026-06-27 ([lessons.md #59](tasks/lessons.md)) |
 | **Research: leveraged-ETF DCA** | 6 strategy variants × 5 tickers (SPY/UPRO/QQQ/QLD/TQQQ), 10y window + weekly research poll | ✅ Merged 2026-05-17 ([lessons.md #44-#50, #61](tasks/lessons.md), reports under `reports/leveraged_etf_dca*/`) |
 | 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |
@@ -93,6 +93,28 @@ The 2021–2026 period embeds a 2022 bear market (NVDA –65%, broad tech –30%
 
 ---
 
+## AlphaSmart Trader & Live Desk (2026-07-09)
+
+Weekly long/short sim-paper book + 5-tab ops dashboard. See the repo-root README for the
+full write-up; quick reference:
+
+```bash
+# Backtest grid (11 methods, matched window, shared cost model)
+venv/bin/python scripts/run_trader_backtests.py     # → reports/trader_backtests/
+
+# Trader paper loop (also scheduled: LaunchAgent com.alphasmart.trader, weekdays 21:10 HK)
+venv/bin/python -m src.trader.paper_runner run      # sim fills only, never touches Alpaca
+venv/bin/python -m src.trader.paper_runner status
+
+# Ticker intelligence (moat / TA / fair value → reports/ticker_intel.json)
+venv/bin/python scripts/ticker_intel.py
+
+# Live Desk dashboard (research console at /research)
+cd frontend && npm run dev                          # http://localhost:3000
+```
+
+---
+
 ## Paper-Trade Runner
 
 The live paper-trade orchestrator lives in `src/execution/`. CLI entrypoint: `python -m src.execution.runner_main`.
@@ -132,11 +154,11 @@ Two LaunchAgents under `~/Library/LaunchAgents/`. Templates committed at `script
 
 | LaunchAgent | Schedule | Purpose |
 |---|---|---|
-| `com.alphasmart.rebalance` | Weekdays 21:00 local | Paper-mode rebalance with `--fetch-before-rebalance --stale-after-hours 96 --poll-fresh-hours 20` (two independent freshness thresholds, lessons.md #57/#58) |
-| `com.alphasmart.healthcheck` | Weekdays 09:00 + 22:00 local | Probe halt-file + state-age + broker reachability via `scripts/healthcheck_wrapper.sh`; nonzero exit → log + macOS notification |
-| `com.alphasmart.etf_research_poll` | Saturdays 22:00 local | Weekly refresh of out-of-universe leveraged-ETF research symbols (QLD/TQQQ/UPRO); fail-open, never affects the trade pipeline (lessons.md #61) |
+| `com.alphasmart.rebalance` | Weekdays 21:00 local | Paper-mode rebalance with `--fetch-before-rebalance --stale-after-hours 96 --poll-fresh-hours 20` (two independent freshness thresholds, lessons.md #57/#58); wrapped in `caffeinate -i -s` (lessons.md #67) |
+| `com.alphasmart.healthcheck` | Weekdays 09:00 + 22:00 local | Probe halt-file + state-age + broker reachability via `scripts/healthcheck_wrapper.sh`; nonzero exit → log + macOS notification; wrapped in `caffeinate -i -s` |
+| `com.alphasmart.etf_research_poll` | Saturdays 22:00 local | Weekly refresh of out-of-universe leveraged-ETF research symbols (QLD/TQQQ/UPRO); fail-open, never affects the trade pipeline (lessons.md #61); wrapped in `caffeinate -i -s` |
 
-**Why launchd over cron on macOS:** macOS `cron` goes silent after sleep/wake events without re-reading the crontab on respawn (lessons.md #51). launchd survives sleep/wake and integrates with the unified log. The previous cron-based schedule was migrated 2026-05-18 after three observed silent-failure incidents in a week.
+**Why launchd over cron on macOS:** macOS `cron` goes silent after sleep/wake events without re-reading the crontab on respawn (lessons.md #51). launchd survives sleep/wake and integrates with the unified log. The previous cron-based schedule was migrated 2026-05-18 after three observed silent-failure incidents in a week. Even under launchd, an idle Mac can cycle through dark-wake/sleep *during* a job's execution and stall it mid-run — all three LaunchAgents now wrap their command in `caffeinate -i -s` to hold a wake assertion for the job's own duration (lessons.md #67, after an 89-minute mid-run stall on 2026-08-04 exposed an unrelated reconciler crash).
 
 **Linux fallback:** the same schedule can be expressed in cron — see outer README. The shell wrapper (`scripts/healthcheck_wrapper.sh`) is shared between launchd and cron paths so the alerting logic is identical.
 
