@@ -39,6 +39,38 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 
 Last rebalance: **2026-08-04** (AAPL→AMZN); basket stable for 26 days since. **A pending rotation is due**: an 2026-08-28 momentum re-check shows AMZN dropping out of the top-5 (+23.6%) in favor of NOW re-entering (+30.8%) — will fire automatically via the membership-rotation override on the next weekday cron (full ranking in `alphasmart/reports/momentum_checks/momentum_check_20260830.json`).
 
+<details>
+<summary>Full 21-symbol momentum ranking (2026-08-28, click to expand)</summary>
+
+Regime: **RISK-ON** (SPY $771.93 vs 200d-MA $708.75). Ranking always runs on the full universe regardless of regime; the regime filter is a separate binary multiplier (100% invested in the top-5 if risk-on, 0%/cash if risk-off) — it does not change which names rank highest.
+
+| Rank | Symbol | 126d Momentum | Top-5 | Held |
+|---:|---|---:|:---:|:---:|
+| 1 | PANW | +145.8% | ✅ | ✅ |
+| 2 | AMD | +136.9% | ✅ | ✅ |
+| 3 | MU | +126.0% | ✅ | ✅ |
+| 4 | ANET | +48.2% | ✅ | ✅ |
+| 5 | NOW | +30.8% | ✅ | |
+| 6 | MSFT | +30.4% | | |
+| 7 | NVDA | +27.4% | | |
+| 8 | NVO | +26.7% | | |
+| 9 | AMZN | +23.6% | | ✅ |
+| 10 | ASML | +19.9% | | |
+| 11 | AAPL | +19.6% | | |
+| 12 | V | +19.2% | | |
+| 13 | QQQ | +18.8% | | |
+| 14 | AVGO | +17.3% | | |
+| 15 | MA | +15.0% | | |
+| 16 | LLY | +10.9% | | |
+| 17 | GOOG | +9.2% | | |
+| 18 | META | −10.6% | | |
+| 19 | TSLA | −11.7% | | |
+| 20 | CRWD | −42.0% | | |
+
+Rotation: **SELL AMZN (#9), BUY NOW (#5)** — MU/AMD/PANW/ANET unchanged.
+
+</details>
+
 ### 60-day extended checkpoint (2026-07-01 → 2026-08-30, lessons.md #68)
 
 The 7/31 30-day rubric (−2.38%) was too short a sample to judge, so evaluation was extended to 60 days on the clean 2026-07-01 anchor:

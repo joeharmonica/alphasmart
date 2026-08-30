@@ -51,6 +51,38 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 
 Last rebalance: **2026-08-04** (AAPL→AMZN swap); basket stable for 26 days since. **Pending rotation:** the 2026-08-28 momentum re-check shows AMZN (+23.6%) dropping out of the top-5 for NOW (+30.8%) — will fire automatically on the next weekday cron via the membership-rotation override (ranking in `reports/momentum_checks/momentum_check_20260830.json`).
 
+<details>
+<summary>Full 21-symbol momentum ranking (2026-08-28, click to expand)</summary>
+
+Regime: **RISK-ON** (SPY $771.93 vs 200d-MA $708.75). Ranking always runs on the full universe regardless of regime; the regime filter is a separate binary multiplier (100% invested in the top-5 if risk-on, 0%/cash if risk-off) — it does not change which names rank highest.
+
+| Rank | Symbol | 126d Momentum | Top-5 | Held |
+|---:|---|---:|:---:|:---:|
+| 1 | PANW | +145.8% | ✅ | ✅ |
+| 2 | AMD | +136.9% | ✅ | ✅ |
+| 3 | MU | +126.0% | ✅ | ✅ |
+| 4 | ANET | +48.2% | ✅ | ✅ |
+| 5 | NOW | +30.8% | ✅ | |
+| 6 | MSFT | +30.4% | | |
+| 7 | NVDA | +27.4% | | |
+| 8 | NVO | +26.7% | | |
+| 9 | AMZN | +23.6% | | ✅ |
+| 10 | ASML | +19.9% | | |
+| 11 | AAPL | +19.6% | | |
+| 12 | V | +19.2% | | |
+| 13 | QQQ | +18.8% | | |
+| 14 | AVGO | +17.3% | | |
+| 15 | MA | +15.0% | | |
+| 16 | LLY | +10.9% | | |
+| 17 | GOOG | +9.2% | | |
+| 18 | META | −10.6% | | |
+| 19 | TSLA | −11.7% | | |
+| 20 | CRWD | −42.0% | | |
+
+Rotation: **SELL AMZN (#9), BUY NOW (#5)** — MU/AMD/PANW/ANET unchanged.
+
+</details>
+
 **60-day extended checkpoint (2026-07-01 → 2026-08-30, lessons.md #68):** return **−4.59%** vs SPY +3.36% and a backtest-implied +4.4–4.9% — a real miss, but concentrated almost entirely in one name (MU, a near-continuous drag since its extreme-momentum entry on 6/29) while PANW/ANET/AMD were net-profitable throughout. MaxDD −13.3% stayed within tolerance; 0 real halts; 1 uncaught crash found and fixed same-day (A13, #67). Lesson #66 already backtested and rejected a systematic momentum-cap fix for exactly this pattern — **decision: continue unchanged**, letting the existing rotation logic resolve MU organically. Scheduler is launchd (migrated from cron 2026-05-18, lessons.md #51), wrapped in `caffeinate -i -s` (lessons.md #67); rebalance runs `--stale-after-hours 96 --poll-fresh-hours 20` (two independent freshness thresholds, lessons.md #57/#58). Zero false-positive halts since 2026-05-18.
 
 ### Leveraged-ETF DCA research summary (2026-05-17)
