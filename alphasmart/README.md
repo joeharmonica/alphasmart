@@ -30,26 +30,28 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **9 — Multi-universe diversification** | Crypto (9 pairs) + bonds (9 ETFs) + sector ETFs (11) | ✅ **2026-05-03 — crypto PORTFOLIO_READY, bonds/sectors killed at Stage 3** |
 | **9 — First uncorrelated pair** | Equity xsec mom + crypto xsec mom, monthly ρ=0.40, var-reduction 32% | ✅ **2026-05-03 — 2 of ≥3 needed (lesson #39)** |
 | **10 — Regime filter** | Asset > 200d-MA gate (SPY for equity, BTC for crypto) | ✅ **2026-05-03 — Sharpe +0.4 to +0.5, MaxDD halved, 2022 dodged (lesson #40)** |
-| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$98.9k, top-5 mega-cap basket; see snapshot below |
-| **Operational hardening** | A1-A13 reconciler/preflight/cadence fixes + health-check + cron→launchd + state-write guard + caffeinate | ✅ Ongoing 2026-05-17 → 2026-08-04 ([lessons.md #42-#43, #49-#61, #65, #67](tasks/lessons.md)) |
+| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$100.6k, top-5 mega-cap basket; see snapshot below |
+| **Operational hardening** | A1-A13 reconciler/preflight/cadence fixes + health-check + cron→launchd + state-write guard + caffeinate | ✅ Ongoing 2026-05-17 → 2026-08-04 ([lessons.md #42-#43, #49-#61, #65, #67-#68](tasks/lessons.md)) |
 | **Universe expansion (17 → 21)** | Market-cap rule: + MU, PANW, CRWD, ANET | ✅ 2026-06-27 ([lessons.md #59](tasks/lessons.md)) |
 | **Research: leveraged-ETF DCA** | 6 strategy variants × 5 tickers (SPY/UPRO/QQQ/QLD/TQQQ), 10y window + weekly research poll | ✅ Merged 2026-05-17 ([lessons.md #44-#50, #61](tasks/lessons.md), reports under `reports/leveraged_etf_dca*/`) |
 | 7 — Live Deployment | Real capital, broker integration | ⏸ Pending Phase 5 |
 
-### Latest paper-trade snapshot (live broker, 2026-07-01)
+### Latest paper-trade snapshot (live broker, 2026-08-30)
 
 `equity_xsec_momentum_B` — **21-symbol** universe, top-5 equal-weight 126d momentum, SPY > 200d-MA regime gate. Rebalances on top-5 membership rotation (any day) or a monthly cadence floor (first weekday cron of a new month, ≥14 trading days since anchor).
 
-| Symbol | Market value | Weight | Unrealized P/L |
-|---|---:|---:|---:|
-| PANW | $23,261 | 22.1% | +$2,718 |
-| CRWD | $22,214 | 21.1% | +$1,660 |
-| ASML | $21,101 | 20.0% | +$5,091 |
-| AMD | $20,989 | 19.9% | +$3,378 |
-| MU | $18,844 | 17.9% | −$915 |
-| **Total equity** | **$105,430** | 100% | **+$11,933** |
+| Symbol | Weight | Unrealized P/L |
+|---|---:|---:|
+| PANW | 21.1% | +$3,411 |
+| ANET | 21.2% | +$2,094 |
+| MU | 22.6% | −$3,039 |
+| AMD | 19.3% | −$122 |
+| AMZN | 18.8% | −$871 |
+| **Total equity** | 100% | **$100,595** (+0.59% since inception) |
 
-Last rebalance: **2026-06-29** — the v3 (21-symbol) expansion rotated into the new momentum top-5 **MU/AMD/ASML/PANW/CRWD**. A 2026-07-01 momentum re-check confirms the held basket *is* the current top-5 (`rotation_needed=False`, regime risk-on; ranking in `reports/momentum_checks/momentum_check_20260701.json`). Equity **+5.4% since inception (5/05) / +5.2% since the 6/29 rotation** — but a ~2-day post-change pop proves nothing (lessons.md #62); **clean 30-day rubric anchored 2026-07-01 → formal checkpoint 2026-07-31.** Scheduler is launchd (migrated from cron 2026-05-18, lessons.md #51); rebalance runs `--stale-after-hours 96 --poll-fresh-hours 20` (two independent freshness thresholds, lessons.md #57/#58). Zero false-positive halts since 2026-05-18.
+Last rebalance: **2026-08-04** (AAPL→AMZN swap); basket stable for 26 days since. **Pending rotation:** the 2026-08-28 momentum re-check shows AMZN (+23.6%) dropping out of the top-5 for NOW (+30.8%) — will fire automatically on the next weekday cron via the membership-rotation override (ranking in `reports/momentum_checks/momentum_check_20260830.json`).
+
+**60-day extended checkpoint (2026-07-01 → 2026-08-30, lessons.md #68):** return **−4.59%** vs SPY +3.36% and a backtest-implied +4.4–4.9% — a real miss, but concentrated almost entirely in one name (MU, a near-continuous drag since its extreme-momentum entry on 6/29) while PANW/ANET/AMD were net-profitable throughout. MaxDD −13.3% stayed within tolerance; 0 real halts; 1 uncaught crash found and fixed same-day (A13, #67). Lesson #66 already backtested and rejected a systematic momentum-cap fix for exactly this pattern — **decision: continue unchanged**, letting the existing rotation logic resolve MU organically. Scheduler is launchd (migrated from cron 2026-05-18, lessons.md #51), wrapped in `caffeinate -i -s` (lessons.md #67); rebalance runs `--stale-after-hours 96 --poll-fresh-hours 20` (two independent freshness thresholds, lessons.md #57/#58). Zero false-positive halts since 2026-05-18.
 
 ### Leveraged-ETF DCA research summary (2026-05-17)
 

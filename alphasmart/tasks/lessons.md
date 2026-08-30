@@ -1580,3 +1580,30 @@ Added `caffeinate -i -s` as the first `ProgramArguments` entry on all three repo
 ### Rule
 
 **A reconciliation/health-check function is exactly the code that must never crash uncaught — its entire job is to decide whether to raise an alarm, and an unhandled exception silently discards that decision instead of erring toward safety.** Any `dict[key]` access inside a function whose output gates a halt should be treated as a potential silent-safety-net hole: prefer `.get()` with an explicit "what does missing actually mean here" branch over trusting that a value pulled from one data source will always have a matching key in another. This is the same family as lesson #43/#52 (full-close and pending-order races the reconciler must classify, not choke on) — this incident is the same race one layer deeper, hitting the indexing itself rather than the classification logic.
+
+---
+
+## 68. 60-Day Extended Checkpoint (2026-07-01 → 2026-08-30) — Return Misses Backtest and SPY, but the Drag Traces to One Name, Not the Strategy
+
+**Context.** The 7/31 30-day rubric (lesson #67's neighbor in time) came back at −2.38%, too short a sample to separate noise from a real problem, so the evaluation was extended to 60 days on the clean 2026-07-01 anchor (21-symbol universe, momentum-verified top-5 that day). This is the formal close-out of that extension.
+
+### Scorecard
+
+| Metric | Result | Backtest hypothesis | Verdict |
+|---|---:|---:|:---:|
+| Return | **−4.59%** ($105,430 → $100,595) | +4.4–4.9% (55–62%/yr, pro-rated) | miss |
+| SPY same period | +3.36% | — | trails by 7.9pp |
+| Max drawdown | −13.3% (anchor → 7/29 trough) | 23–26% annualized | within tolerance |
+| Real halts | 0 | 0 | clean |
+| Uncaught crashes | 1 (2026-08-04, same-day fix — A13, lesson #67) | 0 | found & closed |
+| Rotations | 3 in first 3 days (7/31, 8/03, 8/04), then **stable 26 days** | — | reasonable |
+
+### Read
+
+The shortfall is real and now has a 60-day sample behind it, not 30 — but it is **not broad-based**. Across the whole window, PANW, ANET, and AMD were net-profitable almost continuously; **MU alone** has been a near-uninterrupted drag since entering the top-5 on 6/29 at extreme trailing momentum (+299.8%, per lesson #66). One concentrated, crowded-momentum name unwinding looks structurally different from — and far less concerning than — a broad failure of the momentum signal or the operational pipeline (which held up cleanly: the one crash found had a same-day root-caused fix, and turnover settled to near-zero for the back 26 days of the window once the post-expansion basket stabilized).
+
+Lesson #66 already tested and rejected a systematic fix for exactly this pattern (a momentum cap nets Sharpe-negative over the full backtest despite catching MU specifically) — so there is no backtest-supported rule change available in response to this checkpoint. **Decision: continue the strategy unchanged.** The mechanism is sound; the shortfall is attributable to one name's reversal, which the existing top-5 rotation logic will resolve organically once MU's momentum decays below the top-5 threshold, without any manual override.
+
+### Rule
+
+**When a strategy underperforms, attribute the shortfall to a specific holding before concluding the mechanism is broken.** A 60-day return miss that traces to one name's reversal calls for patience (the rotation logic will self-correct) rather than intervention; a 60-day miss spread evenly across every holding would call for revisiting the signal itself. Distinguishing the two is the entire value of breaking down performance by position rather than only looking at the aggregate — the aggregate number alone (−4.59%) reads identically in both scenarios but implies opposite responses.

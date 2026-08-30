@@ -16,9 +16,9 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 | **4 — Dashboard** | React UI, Next.js, optimization queue, opt-params persistence | ✅ Complete |
 | **Step 1 Live Run** | Full data fetch, batch backtest, optimization, reports | ✅ 2026-04-07 |
 | **Steps 3–5** | Regime filter, V2 composites, intraday mini-batch | ✅ 2026-04-07 |
-| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$98.9k, top-5 mega-cap basket |
+| 5 — Forward Testing | Paper trading, 30-day run | 🟢 **Running since 2026-05-05** — equity leg only, live broker equity ~$100.6k, top-5 mega-cap basket |
 | 6 — Live Deployment | Real capital, broker integration | 🔜 Planned |
-| **Operational hardening** | A1-A13 reconciler/preflight/cadence fixes + health-check + launchd migration + state-write guard + caffeinate | ✅ Ongoing 2026-05-17 → 2026-08-04 ([lessons.md #42-#43, #49-#61, #65, #67](alphasmart/tasks/lessons.md)) |
+| **Operational hardening** | A1-A13 reconciler/preflight/cadence fixes + health-check + launchd migration + state-write guard + caffeinate | ✅ Ongoing 2026-05-17 → 2026-08-04 ([lessons.md #42-#43, #49-#61, #65, #67-#68](alphasmart/tasks/lessons.md)) |
 | **Universe expansion (17 → 21)** | Market-cap rule: add MU, PANW, CRWD, ANET | ✅ 2026-06-27 ([lessons.md #59](alphasmart/tasks/lessons.md)) |
 | **Research: leveraged-ETF DCA** | 10y DCA backtest, 6 strategy variants × 5 tickers + weekly research poll | ✅ Merged 2026-05-17 ([lessons.md #44-#50, #61](alphasmart/tasks/lessons.md), reports under `alphasmart/reports/leveraged_etf_dca*/`) |
 | **AlphaSmart Trader (weekly L/S)** | 55-name extended universe, long/short engine, 11-method backtest grid, sim-paper runner + LaunchAgent | 🟢 **Sim paper since 2026-07-09** — `wk_dual_momo_hedged` (backtest Sharpe 1.14 vs benchmark 0.97, matched window; [lessons.md #63](alphasmart/tasks/lessons.md)) |
@@ -26,18 +26,33 @@ A full-stack algorithmic trading platform: strategy research → backtesting →
 
 > The current paper-trade run uses the equity leg only (`equity_xsec_momentum_B`): **21-symbol** mega-cap cross-sectional 6-month (126-trading-day) momentum, top-5 equal-weight, gated by SPY > 200d-MA. Rebalance fires on **top-5 membership rotation (any day) or a monthly cadence floor** (first weekday cron of a new month, ≥14 trading days since last rebalance) — see "Rebalance cadence" below. Universe history: v2 (2026-05-11) added AMD + LLY; v3 (2026-06-27) added MU/PANW/CRWD/ANET by market-cap rule (backtest: 21-set Sharpe 1.771 vs 1.712 baseline on matched window, +8.2pts CAGR, +4.8pts MaxDD). See `alphasmart/tasks/strategies.md` for the audit trail and `alphasmart/tasks/paper_trade_design.md` for the design + pass/fail rubric.
 
-### Latest paper-trade snapshot (live broker, 2026-07-01)
+### Latest paper-trade snapshot (live broker, 2026-08-30)
 
-| Symbol | Market value | Weight | Unrealized P/L |
-|---|---:|---:|---:|
-| PANW | $23,261 | 22.1% | +$2,718 |
-| CRWD | $22,214 | 21.1% | +$1,660 |
-| ASML | $21,101 | 20.0% | +$5,091 |
-| AMD | $20,989 | 19.9% | +$3,378 |
-| MU | $18,844 | 17.9% | −$915 |
-| **Total equity** | **$105,430** | 100% | **+$11,933** |
+| Symbol | Weight | Unrealized P/L |
+|---|---:|---:|
+| PANW | 21.1% | +$3,411 |
+| ANET | 21.2% | +$2,094 |
+| MU | 22.6% | −$3,039 |
+| AMD | 19.3% | −$122 |
+| AMZN | 18.8% | −$871 |
+| **Total equity** | 100% | **$100,595** (+0.59% since inception) |
 
-Last rebalance: **2026-06-29** — the v3 (21-symbol) universe expansion rotated the book into the new momentum top-5 **MU/AMD/ASML/PANW/CRWD**. A 2026-07-01 momentum re-check confirms the held basket *is* the current top-5 (`rotation_needed=False`; regime risk-on, SPY > 200d-MA; full ranking in `alphasmart/reports/momentum_checks/momentum_check_20260701.json`). Equity **+5.4% since inception** (5/05) / **+5.2% since the 6/29 rotation**, but a ~2-day post-change pop is not evidence the expansion "works" (see lessons.md #62). **The clean 30-day rubric is anchored 2026-07-01 → formal checkpoint 2026-07-31.**
+Last rebalance: **2026-08-04** (AAPL→AMZN); basket stable for 26 days since. **A pending rotation is due**: an 2026-08-28 momentum re-check shows AMZN dropping out of the top-5 (+23.6%) in favor of NOW re-entering (+30.8%) — will fire automatically via the membership-rotation override on the next weekday cron (full ranking in `alphasmart/reports/momentum_checks/momentum_check_20260830.json`).
+
+### 60-day extended checkpoint (2026-07-01 → 2026-08-30, lessons.md #68)
+
+The 7/31 30-day rubric (−2.38%) was too short a sample to judge, so evaluation was extended to 60 days on the clean 2026-07-01 anchor:
+
+| Metric | Result | Backtest hypothesis | Verdict |
+|---|---:|---:|:---:|
+| Return | **−4.59%** ($105,430 → $100,595) | +4.4–4.9% pro-rated | ❌ miss |
+| SPY same period | +3.36% | — | ❌ trails 7.9pp |
+| Max drawdown | −13.3% | 23–26%/yr | ✅ within tolerance |
+| Real halts | 0 | 0 | ✅ |
+| Uncaught crashes | 1 (8/04, same-day fix, A13/#67) | 0 | ⚠️ found & closed |
+| Rotations | 3 in first 3 days, then stable 26 days | — | ✅ reasonable |
+
+**Verdict: continue unchanged.** The shortfall traces almost entirely to **one name** (MU, a near-continuous drag since its extreme-momentum entry on 6/29) — PANW/ANET/AMD were net-profitable throughout. Lesson #66 already backtested and rejected a systematic momentum-cap fix for exactly this pattern (net Sharpe-negative historically despite catching MU specifically), so there's no backtest-supported rule change available; the existing rotation logic will resolve MU organically once its momentum decays below the top-5 threshold — no manual intervention taken.
 
 ### Rebalance cadence
 
@@ -51,7 +66,7 @@ The cron runs **every weekday 21:00 HK** (09:00 ET) and recomputes the target to
 
 Otherwise the run is `cadence_blocked` — a clean no-op (exit 0, no trade). Even when rebalancing, orders < 0.5% of portfolio are skipped (no-trade band). Auxiliary schedules: **health-check** twice daily (09:00 + 22:00 HK), **leveraged-ETF research poll** weekly (Sat 22:00). In practice the rotation trigger has driven ~weekly trading (6 rebalances in the first 7 weeks) — higher turnover than the backtest's monthly assumption, which is cost-neutral at Alpaca paper's ~zero slippage but a drag at real-money slippage (>10–15 bps; see lessons.md #54).
 
-### Operational hardening journey (2026-05-11 → 2026-08-04, lessons #42–#67)
+### Operational hardening journey (2026-05-11 → 2026-08-04, lessons #42–#68)
 
 A multi-week sprint closing every false-positive halt/block class observed in production, plus the scheduler-reliability and data-freshness issues underneath them. Each fix surfaced the next:
 
