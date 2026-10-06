@@ -10,9 +10,9 @@ const execFileAsync = promisify(execFile);
 
 // frontend/ is process.cwd() when running `npm run dev` from that directory.
 // alphasmart root is one level up.
-const ALPHASMART_DIR = path.resolve(process.cwd(), "..");
-const PYTHON_BIN = path.join(ALPHASMART_DIR, "venv", "bin", "python");
-const BRIDGE_SCRIPT = path.join(ALPHASMART_DIR, "run_backtest.py");
+const ALPHASMART_DIR = path.resolve(/* turbopackIgnore: true */ process.cwd(), "..");
+const PYTHON_BIN = path.join(/* turbopackIgnore: true */ ALPHASMART_DIR, "venv", "bin", "python");
+const BRIDGE_SCRIPT = path.join(/* turbopackIgnore: true */ ALPHASMART_DIR, "run_backtest.py");
 
 /** Run the Python bridge and return parsed JSON. Throws on error. */
 export async function runPython<T = unknown>(

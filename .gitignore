@@ -42,3 +42,7 @@ logs/
 .coverage
 htmlcov/
 .pytest_cache/
+
+# Company research app: dedicated venv + yfinance response cache
+venv-company/
+alphasmart/.cache/
